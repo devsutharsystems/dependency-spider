@@ -1,6 +1,6 @@
 // Frame-time measurement in a REAL, HEADED browser window (real GPU, native devicePixelRatio, no viewport emulation).
 // The headless harness (scripts/perf.mjs) cannot see compositing or GPU fill-rate costs; this one can.
-// Usage: node scripts/perf-headed.mjs [fixture=fastify] [--port=8000] [--throttle=4] [--off=tilt,dust,...] [--label=x] [--idle]
+// Usage: node scripts/perf-headed.mjs [fixture=fastify] [--port=8000] [--throttle=4] [--off=tilt,dust,...] [--label=x] [--idle] [--lite]
 //   needs Playwright (PW_DIR=<folder where `npm i playwright` was run>) and a Chrome binary (CHROME_PATH=<chrome executable>).
 //   Serve the folder first: python3 -m http.server <port>. Prints one JSON line.
 // Per phase (build = crawl + web building, prune = cutting; "idle" = the empty page) it reports:
@@ -16,13 +16,14 @@ const args = process.argv.slice(2);
 const opt = (k, d) => (args.find((a) => a.startsWith(`--${k}=`)) || `--${k}=${d}`).split('=').slice(1).join('=');
 const fixture = args.find((a) => !a.startsWith('--')) || 'fastify';
 const port = opt('port', 8000), throttle = Number(opt('throttle', 1)), off = opt('off', ''), label = opt('label', off || 'run');
-const idle = args.includes('--idle');
+const idle = args.includes('--idle'), lite = args.includes('--lite');
 const { chromium } = createRequire(join(process.env.PW_DIR || process.cwd(), 'x.js'))('playwright');
 
 const browser = await chromium.launch({ headless: false, executablePath: process.env.CHROME_PATH,
   args: ['--window-size=1440,900', '--window-position=0,0', '--disable-renderer-backgrounding', '--disable-background-timer-throttling', '--disable-backgrounding-occluded-windows'] });
 const ctx = await browser.newContext({ viewport: null }); // real window, native pixel ratio
 const page = await ctx.newPage();
+if (lite) await page.addInitScript(() => { try { localStorage.setItem('spider-lite', '1'); } catch { /* ignore */ } });
 await page.addInitScript(() => {
   const orig = window.requestAnimationFrame.bind(window);
   const rec = { build: { iv: [] }, prune: { iv: [] }, idle: { iv: [] }, loaf: [] };
