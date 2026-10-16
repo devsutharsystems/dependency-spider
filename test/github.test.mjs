@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseRepoUrl, rawUrl, pickSourceFiles, pickConfigFiles, kindOf, fetchTree, fetchMany } from '../src/github.js';
+import { parseRepoUrl, rawUrl, pickSourceFiles, pickConfigFiles, kindOf, groupOf, fetchTree, fetchMany } from '../src/github.js';
 
 test('parseRepoUrl forms', () => {
   const want = { owner: 'fastify', repo: 'fastify' };
@@ -20,8 +20,7 @@ test('pickSourceFiles: filters and ranks tests last', () => {
   const tests = Array.from({ length: 50 }, (_, i) => `test/t${i}.js`);
   const paths = ['index.js', 'lib/a.js', 'src/b.ts', 'node_modules/x/i.js', 'dist/o.js', 'build/o.js', 'coverage/c.js', 'vendor/v.js', 'types/a.d.ts', 'README.md', 'other/z.mjs', ...tests];
   const out = pickSourceFiles(paths, 6);
-  assert.deepEqual(out.slice(0, 3).sort(), ['index.js', 'lib/a.js', 'src/b.ts']);
-  assert.ok(out.includes('other/z.mjs'));
+  for (const p of ['index.js', 'lib/a.js', 'src/b.ts', 'other/z.mjs']) assert.ok(out.includes(p), `${p} (real source) comes before any test`);
   assert.equal(out.length, 6);
   assert.ok(out.filter((p) => p.startsWith('test/')).length === 2, 'tests fill only the leftover slots');
   const all = pickSourceFiles(paths, 300);
@@ -81,4 +80,56 @@ test('fetchMany: 404 -> null, never sends headers', async () => {
   assert.equal(texts.get('b.js'), null);
   assert.deepEqual(failed, []);
   assert.ok(inits.every((i) => !i?.headers), "raw file requests carry no custom headers");
+});
+
+test('groupOf: workspace package, top-level directory, or root', () => {
+  assert.equal(groupOf('index.js'), '');
+  assert.equal(groupOf('lib/a/b.js'), 'lib');
+  assert.equal(groupOf('packages/foo/src/x.ts'), 'packages/foo');
+  assert.equal(groupOf('apps/web/pages/index.tsx'), 'apps/web');
+  assert.equal(groupOf('packages/readme.js'), 'packages');
+});
+
+test('sampling: a monorepo fixture with 3 packages and 1,000 files covers all 3 packages when the cap is hit', () => {
+  const paths = [];
+  const add = (pkg, n, dir) => { for (let i = 0; i < n; i++) paths.push(`packages/${pkg}/${dir}/f${String(i).padStart(4, '0')}.ts`); };
+  add('alpha', 400, 'src'); add('beta', 150, 'src'); add('gamma', 50, 'src');   // 600 source files
+  add('alpha', 250, 'test'); add('beta', 100, 'test'); add('gamma', 50, 'test'); // 400 test files
+  assert.equal(paths.length, 1000);
+  const out = pickSourceFiles(paths, 300);
+  assert.equal(out.length, 300);
+  const by = (pkg) => out.filter((p) => p.startsWith(`packages/${pkg}/`));
+  for (const pkg of ['alpha', 'beta', 'gamma']) assert.ok(by(pkg).length >= 50, `${pkg} has ${by(pkg).length} files`);
+  assert.equal(by('gamma').length, 50, 'the smallest package is read completely');
+  assert.ok(out.every((p) => p.includes('/src/')), 'tests stay last: none are read while source files are left');
+  // the old alphabetical behaviour would have returned 300 alpha files and nothing from beta or gamma
+  assert.ok(by('alpha').length < 300);
+});
+
+test('sampling: tests come last even with spreading, and a cap above the total returns every file once', () => {
+  const paths = ['packages/a/src/x.ts', 'packages/b/src/y.ts', 'packages/a/test/t.ts', 'packages/b/test/u.ts'];
+  assert.deepEqual(pickSourceFiles(paths, 3).filter((p) => p.includes('/test/')).length, 1);
+  const all = pickSourceFiles(paths, 100);
+  assert.equal(all.length, 4); assert.equal(new Set(all).size, 4);
+  assert.ok(all.slice(0, 2).every((p) => p.includes('/src/')));
+});
+
+test('fetchMany stops early after 3 failures in a row, keeps what it read, and reports it', async () => {
+  let calls = 0;
+  const f = async (u) => { calls++; if (u.endsWith('ok1.js')) return res(200, 'a'); throw new Error('network down'); };
+  const paths = ['ok1.js', ...Array.from({ length: 30 }, (_, i) => `bad${i}.js`)];
+  const { texts, failed, aborted } = await fetchMany(paths, { owner: 'o', repo: 'r', fetch: f, concurrency: 1, retry: { retries: 0 } });
+  assert.equal(aborted, true);
+  assert.equal(texts.get('ok1.js'), 'a');
+  assert.ok(calls <= 4, `stopped after ${calls} requests`);
+  assert.equal(failed.length, 3);
+  assert.ok(texts.size < paths.length, 'files that were never requested are not in the result');
+});
+
+test('fetchMany: 404s are not failures and a success resets the failure streak', async () => {
+  const f = async (u) => (u.includes('gone') ? res(404, '') : u.includes('flaky') ? (() => { throw new Error('x'); })() : res(200, 'ok'));
+  const paths = ['flaky1.js', 'flaky2.js', 'gone.js', 'flaky3.js', 'flaky4.js', 'fine.js'];
+  const out = await fetchMany(paths, { owner: 'o', repo: 'r', fetch: f, concurrency: 1, retry: { retries: 0 } });
+  assert.equal(out.aborted, false, '404 resets the streak, so 2+2 failures never reach 3 in a row');
+  assert.equal(out.texts.get('fine.js'), 'ok');
 });

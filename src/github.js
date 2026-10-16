@@ -85,21 +85,40 @@ export function kindOf(path) {
 
 const TIER = { src: 0, tooling: 1, example: 1, test: 2, fixture: 2 };
 const MAIN_DIRS = new Set(['lib', 'src', 'bin']);
+const WORKSPACE_ROOTS = new Set(['packages', 'apps', 'libs', 'modules', 'plugins', 'projects', 'services', 'crates']);
 
-// Up to `cap` source files, real source first and tests last, so a test-heavy repo does not
-// push its real source out of the cap (that would create false ghosts).
+// The part of the repo a file belongs to: a workspace package (`packages/foo`) or a top-level directory; '' for root files.
+export function groupOf(path) {
+  const segs = path.split('/');
+  if (segs.length === 1) return '';
+  if (WORKSPACE_ROOTS.has(segs[0]) && segs.length > 2) return `${segs[0]}/${segs[1]}`;
+  return segs[0];
+}
+
+// Up to `cap` source files. Real source first and tests last (so a test-heavy repo does not push its real source out
+// of the cap and invent false ghosts), and WITHIN each of those tiers round-robin across top-level directories and
+// workspace packages, so every package of a monorepo gets some coverage instead of the alphabetically first one eating the cap.
 export function pickSourceFiles(paths, cap = 300) {
-  return paths
+  const items = paths
     .filter((p) => SOURCE_EXT.test(p) && !p.endsWith('.d.ts') && !p.endsWith('.d.mts') && !p.endsWith('.d.cts'))
     .filter((p) => !p.split('/').slice(0, -1).some((d) => SKIP_DIRS.has(d)))
     .map((p) => {
       const segs = p.split('/');
-      const main = segs.length === 1 || MAIN_DIRS.has(segs[0]) ? 0 : 1;
-      return { p, key: [TIER[kindOf(p)], main, segs.length] };
+      return { p, tier: TIER[kindOf(p)], group: groupOf(p), key: [segs.length === 1 || MAIN_DIRS.has(segs[0]) ? 0 : 1, segs.length] };
     })
-    .sort((a, b) => a.key[0] - b.key[0] || a.key[1] - b.key[1] || a.key[2] - b.key[2] || (a.p < b.p ? -1 : 1))
-    .slice(0, cap)
-    .map((x) => x.p);
+    .sort((a, b) => a.key[0] - b.key[0] || a.key[1] - b.key[1] || (a.p < b.p ? -1 : 1));
+  const out = [];
+  for (let tier = 0; tier <= 2 && out.length < cap; tier++) {
+    const groups = new Map();
+    for (const it of items) if (it.tier === tier) { if (!groups.has(it.group)) groups.set(it.group, []); groups.get(it.group).push(it.p); }
+    const lists = [...groups.keys()].sort().map((g) => groups.get(g));
+    for (let round = 0; out.length < cap; round++) {
+      let any = false;
+      for (const l of lists) if (round < l.length) { out.push(l[round]); any = true; if (out.length >= cap) break; }
+      if (!any) break;
+    }
+  }
+  return out;
 }
 
 // Config-like files that can mention tools: root configs, any tsconfig*.json, .husky/*, and
@@ -120,18 +139,24 @@ export function pickConfigFiles(paths) {
   return [...out];
 }
 
-// Fetches many raw files, 8 at a time. Missing files (404) map to null; `failed` lists other errors.
-export async function fetchMany(paths, { owner, repo, ref = 'HEAD', fetch: fetchFn = globalThis.fetch, concurrency = 8, onProgress } = {}) {
+// Fetches many raw files, 8 at a time. Missing files (404) map to null; `failed` lists other errors. After
+// `maxConsecutiveFailures` failures in a row (rate limit, network) it stops early: `aborted` is true, files not yet
+// requested are left out of `texts`, and the caller works with what was read.
+export async function fetchMany(paths, { owner, repo, ref = 'HEAD', fetch: fetchFn = globalThis.fetch, concurrency = 8, onProgress, maxConsecutiveFailures = 3, retry } = {}) {
   const texts = new Map();
   const failed = [];
-  let done = 0;
+  let done = 0, consecutive = 0, aborted = false;
   await mapLimit(paths, concurrency, async (p) => {
+    if (aborted) return;
+    let ok = false;
     try {
-      const res = await fetchRetry(fetchFn, rawUrl(owner, repo, p, ref));
-      if (res.ok) texts.set(p, await res.text());
-      else { texts.set(p, null); if (res.status !== 404) failed.push(p); }
+      const res = await fetchRetry(fetchFn, rawUrl(owner, repo, p, ref), undefined, retry);
+      if (res.ok) { texts.set(p, await res.text()); ok = true; }
+      else { texts.set(p, null); if (res.status === 404) ok = true; else failed.push(p); }
     } catch { texts.set(p, null); failed.push(p); }
+    consecutive = ok ? 0 : consecutive + 1;
+    if (consecutive >= maxConsecutiveFailures) aborted = true;
     onProgress?.(++done, paths.length);
   });
-  return { texts, failed };
+  return { texts, failed, aborted };
 }
