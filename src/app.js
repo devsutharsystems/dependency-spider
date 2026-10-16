@@ -2,6 +2,7 @@
 import { runPipeline } from './pipeline.js';
 import { fragility } from './registry.js';
 import { fragColor, Viz } from './viz.js';
+import { applyTheme, defaultThemeId, THEMES, THEME_IDS, themeId, theme } from './theme.js';
 import { prText, ghostLine } from './report.js';
 import { buildCard } from './cards.js';
 import { deserializeResult } from './fixture.js';
@@ -9,6 +10,10 @@ import { legendParts } from './legend.js';
 
 const $ = (id) => document.getElementById(id);
 const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Theme before the canvas is built: the canvas reads the same palette object as the CSS.
+let savedTheme = null;
+try { savedTheme = localStorage.getItem('spider-theme'); } catch { /* storage can be blocked: the page works without it */ }
+applyTheme(savedTheme || defaultThemeId(window.matchMedia('(prefers-color-scheme: dark)').matches));
 const viz = new Viz($('web'), { reducedMotion: reduced });
 window.__viz = viz; // handy for debugging in the console
 window.__spider = { get result() { return current; } };
@@ -38,19 +43,49 @@ function friendly(err) {
 }
 
 // One line under the canvas saying what the dot colours encode in THIS scan (it depends on the staleness box).
+let legendOn = false;
 function renderLegend(stalenessOn) {
+  legendOn = stalenessOn;
   const { items, tail } = legendParts(stalenessOn);
   const box = $('legend');
   box.replaceChildren();
   for (const it of items) {
     const item = el('span', 'item'); // swatch and label stay together when the line wraps (phone)
-    const sw = el('span', 'sw');
-    sw.style.background = it.f === null ? '#4a5470' : fragColor(it.f);
+    const sw = el('span', `sw${it.cue ? ` ${it.cue}` : ''}`); // ring / hollow: the same non-colour cues the canvas draws
+    sw.style.setProperty('--sw', it.f === null ? theme.cmiss : fragColor(it.f));
     item.append(sw, document.createTextNode(it.text));
     box.append(item, document.createTextNode(' '));
   }
-  box.append(document.createTextNode(` · ${tail}`));
+  box.append(document.createTextNode(`·\u00a0${tail}`)); // non-breaking space keeps the dot with the first word of the tail
 }
+// ---- themes: a small selector; the choice is saved if storage works, and the page works without it ----
+function chooseTheme(id, save = true) {
+  applyTheme(id);
+  viz.themeChanged();
+  renderLegend(legendOn);
+  for (const b of $('themes').children) b.setAttribute('aria-pressed', String(b.dataset.id === id));
+  if (save) { try { localStorage.setItem('spider-theme', id); } catch { /* ignore: storage blocked */ } }
+}
+for (const id of THEME_IDS) {
+  const t = THEMES[id], b = document.createElement('button');
+  b.type = 'button'; b.className = 'theme-btn'; b.dataset.id = id; b.title = t.name; b.setAttribute('aria-label', `${t.name} theme`);
+  b.style.setProperty('--tb', `linear-gradient(135deg, ${t.bg1} 0 45%, ${t.accent} 45% 100%)`);
+  b.setAttribute('aria-pressed', String(id === themeId));
+  b.addEventListener('click', () => chooseTheme(id));
+  $('themes').append(b);
+}
+if (!savedTheme) { // no saved choice: follow the system scheme if it changes
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', (e) => { let s2 = null; try { s2 = localStorage.getItem('spider-theme'); } catch { /* ignore */ } if (!s2) chooseTheme(defaultThemeId(e.matches), false); });
+}
+
+// count-up for the headline number (skipped for reduced motion)
+function countUp(node, to, ms = 700) {
+  if (reduced || to === 0) { node.textContent = to; return; }
+  const t0 = performance.now();
+  const step = (now) => { const k = Math.min(1, (now - t0) / ms); node.textContent = Math.round(to * (1 - (1 - k) ** 3)); if (k < 1) requestAnimationFrame(step); };
+  requestAnimationFrame(step);
+}
+
 renderLegend($('stale').checked);
 $('stale').addEventListener('change', () => { if (!busy) renderLegend($('stale').checked); });
 
@@ -119,6 +154,7 @@ async function start() {
   busy = true;
   $('scan').disabled = true;
   resetUi();
+  viz.setHint(false);
   $('progress').hidden = false;
   const withModified = $('stale').checked;
   renderLegend(withModified);
@@ -134,6 +170,7 @@ async function start() {
     $('error').textContent = friendly(err);
     $('error').hidden = false;
     $('progress').hidden = true;
+    viz.reset(); // back to the hanging spider
   } finally {
     busy = false;
     $('scan').disabled = false;
@@ -147,6 +184,7 @@ async function playResult(result, rate = 0) {
   busy = true;
   $('scan').disabled = true;
   resetUi();
+  viz.setHint(false);
   $('progress').hidden = false;
   renderLegend([...result.graph.nodes.values()].some((n) => n.modified)); // colours use `modified` only if the scan had it
   try {
@@ -221,8 +259,9 @@ async function showResult(r) {
   $('count-label').textContent = 'packages in your tree';
   $('skip').hidden = true; $('replay').hidden = false;
   $('summary').hidden = false;
-  const num = el('span', 'num', `-${s.combinedShed}`);
-  $('sum-big').replaceChildren(num, document.createTextNode(` ${s.combinedShed === 1 ? 'package' : 'packages'}`));
+  const num = el('span', 'num', '0');
+  $('sum-big').replaceChildren(document.createTextNode('-'), num, document.createTextNode(` ${s.combinedShed === 1 ? 'package' : 'packages'}`));
+  countUp(num, s.combinedShed);
   $('sum-sub').textContent = `${s.before} to ${s.after} (${s.percent}% smaller)`;
   $('command').textContent = r.command;
 }
