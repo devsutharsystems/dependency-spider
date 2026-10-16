@@ -3,6 +3,7 @@ import { runPipeline } from './pipeline.js';
 import { fragility } from './registry.js';
 import { fragColor, Viz } from './viz.js';
 import { prText, ghostLine } from './report.js';
+import { buildCard } from './cards.js';
 
 const $ = (id) => document.getElementById(id);
 const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -146,20 +147,19 @@ async function showResult(r) {
   const cards = new Map();
   $('cards').append(el('h2', null, 'Unused candidates'), el('div', 'muted', 'never imported, not in scripts or config'));
   for (const g of s.perGhost) {
-    const c = el('div', 'card');
-    c.append(el('div', 'name', g.name), el('div', 'state', 'queued'));
-    cards.set(g.name, c);
-    $('cards').append(c);
+    const { card, state } = buildCard(el, g.name);
+    cards.set(g.name, { card, state });
+    $('cards').append(card);
   }
   await viz.wait(700);
   await viz.prune(s, {
     onCount: (n) => tweenCount(n),
     onGhost: (name, state, info) => {
-      const c = cards.get(name);
+      const { card, state: stateEl } = cards.get(name);
       const g = s.perGhost.find((x) => x.name === name);
-      if (state === 'cutting') { c.className = 'card cutting'; c.lastChild.textContent = 'cutting…'; }
-      else if (g.stillNeededBy) { c.className = 'card needed'; c.lastChild.textContent = `still needed by ${g.stillNeededBy}, removing it will not shrink the tree`; }
-      else { c.className = 'card done'; c.lastChild.textContent = `cut: ${info.removed} ${info.removed === 1 ? 'package' : 'packages'} gone`; }
+      if (state === 'cutting') { card.className = 'card cutting'; stateEl.textContent = 'cutting…'; }
+      else if (g.stillNeededBy) { card.className = 'card needed'; stateEl.textContent = `still needed by ${g.stillNeededBy}, removing it will not shrink the tree`; }
+      else { card.className = 'card done'; stateEl.textContent = `cut: ${info.removed} ${info.removed === 1 ? 'package' : 'packages'} gone`; }
     },
   });
   $('count-label').textContent = 'packages in your tree';
