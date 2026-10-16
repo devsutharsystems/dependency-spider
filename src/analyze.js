@@ -43,12 +43,18 @@ export function shorthands(name) {
   return out;
 }
 
+// Tools that need a companion package without naming it: `webpack` runs through `webpack-cli`.
+const COMPANIONS = { 'webpack-cli': ['webpack'] };
+// Specs that point at local code, not the registry: nothing to find in npm, so never reported.
+const LOCAL_SPEC = /^(\.{1,2}\/|file:|link:|portal:|workspace:)/;
+
 export function aliasesOf(name, bins = []) {
   return [...new Set([name, ...bins, ...shorthands(name)])];
 }
 
 // files: [{path, text}]  configTexts: [string]  bins: { pkgName: [binNames] } (from the registry)
-export function classify({ pkg, files, configTexts = [], bins = {} }) {
+// nestedRoots: dirs with their own package.json (e.g. 'docs/'); their imports belong to another project, so they are not phantoms.
+export function classify({ pkg, files, configTexts = [], bins = {}, nestedRoots = [] }) {
   const kindsByPkg = new Map(); // package -> Set of file kinds importing it
   const filesByPkg = new Map();
   for (const f of files) {
@@ -66,13 +72,15 @@ export function classify({ pkg, files, configTexts = [], bins = {} }) {
     ...(Array.isArray(pkg.bundledDependencies) ? pkg.bundledDependencies : [])]);
 
   const isMentioned = (name) => aliasesOf(name, bins[name]).some((a) => mentions(text, a));
+  const isUsed = (name) => kindsByPkg.has(name) || isMentioned(name);
   const ghosts = [];
   const misplaced = [];
   for (const [section, names] of [['dependencies', prod], ['devDependencies', dev]]) {
     for (const name of names) {
       if (name.startsWith('@types/') || BUILTINS.has(name)) continue; // BUILTINS: ambiguous with node core, skip
+      if (LOCAL_SPEC.test((section === 'dependencies' ? pkg.dependencies : pkg.devDependencies)[name])) continue;
       const kinds = kindsByPkg.get(name);
-      const mentioned = isMentioned(name);
+      const mentioned = isMentioned(name) || (COMPANIONS[name] || []).some(isUsed);
       if (!kinds && !mentioned) { ghosts.push({ name, section }); continue; }
       if (section === 'dependencies' && !(kinds && kinds.has('src'))) {
         const only = kinds ? [...kinds] : [];
@@ -89,7 +97,7 @@ export function classify({ pkg, files, configTexts = [], bins = {} }) {
   const phantoms = [];
   for (const [name, kinds] of kindsByPkg) {
     if (declared.has(name) || name === pkg.name || name.startsWith('@types/')) continue;
-    const real = filesByPkg.get(name).filter((p) => kindOf(p) !== 'fixture');
+    const real = filesByPkg.get(name).filter((p) => kindOf(p) !== 'fixture' && !nestedRoots.some((r) => p.startsWith(r)));
     if (!real.length) continue;
     phantoms.push({ name, files: real.slice(0, 3) });
   }

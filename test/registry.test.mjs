@@ -12,7 +12,7 @@ function fakeRegistry(spec) {
     const s = spec[name];
     const mk = (status, body) => ({ status, ok: status < 300, json: async () => body, headers: { get: () => null } });
     if (!s) return mk(404, 'Not Found');
-    if (m[2]) return mk(200, { name, version: '1.0.0', dependencies: Object.fromEntries((s.deps || []).map((d) => [d, '*'])), bin: s.bin, maintainers: Array(s.maintainers ?? 2).fill({}), deprecated: s.deprecated });
+    if (m[2]) return mk(200, { name, version: '1.0.0', dependencies: Object.fromEntries((s.deps || []).map((d) => [d, '*'])), bin: s.bin, maintainers: Array(s.maintainers ?? 2).fill({}), deprecated: s.deprecated, peerDependencies: Object.fromEntries((s.peers || []).map((d) => [d, '*'])) });
     return mk(200, { modified: s.modified || '2020-01-01T00:00:00.000Z' });
   };
   return { fetch, calls };
@@ -80,4 +80,10 @@ test('fetchModified and fragility', async () => {
   assert.equal(fragility({ modified: null, maintainers: 3, deprecated: false }, now), 0);
   assert.equal(fragility({ modified: '2020-01-01', maintainers: 1, deprecated: true }, now), 1);
   assert.ok(Math.abs(fragility({ modified: '2025-01-01', maintainers: 2, deprecated: false }, now) - 0.6 * (365 / 1460)) < 0.01);
+});
+test('peer dependencies are recorded but not crawled', async () => {
+  const { fetch } = fakeRegistry({ a: { peers: ['p'] }, p: {} });
+  const g = await crawl(['a'], { fetch });
+  assert.deepEqual(g.nodes.get('a').peers, ['p']);
+  assert.equal(g.nodes.has('p'), false);
 });

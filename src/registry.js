@@ -16,13 +16,14 @@ export function fetchLatest(name, { fetch: fetchFn = globalThis.fetch, cache = c
 
 async function loadLatest(name, fetchFn) {
   const res = await fetchRetry(fetchFn, `${BASE}${encodeName(name)}/latest`, { headers: { Accept: 'application/json' } });
-  if (res.status === 404) return { name, missing: true, deps: [], bins: [], maintainers: 0, deprecated: false, modified: null };
+  if (res.status === 404) return { name, missing: true, deps: [], peers: [], bins: [], maintainers: 0, deprecated: false, modified: null };
   if (!res.ok) throw new SpiderError('REGISTRY_ERROR', `npm registry answered ${res.status} for ${name}.`);
   const j = await res.json();
   const bin = typeof j.bin === 'string' ? [name.split('/').pop()] : Object.keys(j.bin || {});
   return {
     name, version: j.version, missing: false,
     deps: Object.keys(j.dependencies || {}),
+    peers: Object.keys(j.peerDependencies || {}), // not crawled, only used to avoid calling a needed peer a ghost
     bins: bin,
     maintainers: (j.maintainers || []).length,
     deprecated: !!j.deprecated,
@@ -51,7 +52,7 @@ export async function crawl(roots, { fetch: fetchFn, cache = createCache(), maxD
     await mapLimit(level, concurrency, async ({ name, depth, parent }) => {
       let info;
       try { info = await fetchLatest(name, { fetch: fetchFn, cache }); }
-      catch { graph.errors++; info = { name, missing: false, failed: true, deps: [], bins: [], maintainers: 0, deprecated: false, modified: null }; }
+      catch { graph.errors++; info = { name, missing: false, failed: true, deps: [], peers: [], bins: [], maintainers: 0, deprecated: false, modified: null }; }
       const node = { ...info, depth, parent };
       nodes.set(name, node);
       for (const dep of node.deps) {

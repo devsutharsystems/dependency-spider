@@ -71,3 +71,16 @@ test('phantom: imported, undeclared; own name, built-ins, peer deps and fixtures
   const r = run(pkg, [f('lib/a.js', "require('undeclared'); require('me/sub'); require('peer'); require('fs');"), f('test/fixtures/x.js', "require('fixture-only')")]);
   assert.deepEqual(names(r.phantoms), ['undeclared']);
 });
+test('local path dependencies are never reported', () => {
+  const r = run({ name: 'me', devDependencies: { local: './fixtures/local', f: 'file:../f', real: '1' } }, []);
+  assert.deepEqual(names(r.ghosts), ['real']);
+});
+test('webpack-cli counts as used when webpack is used', () => {
+  const pkg = { name: 'me', scripts: { b: 'webpack --mode x' }, devDependencies: { webpack: '1', 'webpack-cli': '1' } };
+  assert.equal(run(pkg, []).ghosts.length, 0);
+  assert.deepEqual(names(run({ name: 'me', devDependencies: { 'webpack-cli': '1' } }, []).ghosts), ['webpack-cli']);
+});
+test('phantoms inside nested package roots (docs/ with its own package.json) are ignored', () => {
+  const r = run({ name: 'me' }, [f('docs/a.ts', "import 'astro'"), f('lib/b.js', "require('real-phantom')")], { nestedRoots: ['docs/'] });
+  assert.deepEqual(names(r.phantoms), ['real-phantom']);
+});
