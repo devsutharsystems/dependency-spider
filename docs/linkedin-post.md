@@ -10,4 +10,4 @@ What I learned, from runs on 16 Oct 2026:
 
 So the output is candidates, not verdicts.
 
-Code and write-up: <REPO_URL>
+Code and write-up: https://github.com/devsutharsystems/dependency-spider

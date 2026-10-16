@@ -2,6 +2,8 @@
 
 Paste a GitHub repo and watch a spider find the dead libraries in it, and show how much of the dependency tree you can cut.
 
+**Live demo:** https://devsutharsystems.github.io/dependency-spider/ (the site URL once Pages is enabled; not yet opened or tested, see "Not verified" below).
+
 A static website: no backend, no build step, no API key, no LLM. Everything runs in your browser against three free public sources (GitHub raw files, the GitHub trees API, the npm registry).
 
 ![Summary view, postcss/postcss](docs/showcase/4-summary.png)
