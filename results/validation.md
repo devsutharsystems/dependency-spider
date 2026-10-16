@@ -10,8 +10,8 @@ Neither tool is ground truth. "Disagreement" means the two lists differ; the rea
 | koajs/koa | 23 | 82/82 | 0 | 4 | 0 | 0 | 4 | 0 of 327 |
 | hexojs/hexo | 47 | 274/274 | 0 | 7 | 0 | 0 | 7 | 0 of 524 |
 | mochajs/mocha | 53 | 300/478 (cap) | 1 | 12 | 1 | 0 | 11 | 2 of 585 |
-| postcss/postcss | 21 | 63/63 | 3 | 9 | 3 | 0 | 6 | 24 of 228 |
-| axios/axios | 42 | 278/278 | 2 | 12 | 1 | 1 | 11 | 2 of 540 |
+| postcss/postcss | 21 | 63/63 | 2 | 9 | 2 | 0 | 7 | 23 of 228 |
+| axios/axios | 42 | 278/278 | 1 | 12 | 1 | 0 | 11 | 0 of 540 |
 | chalk/chalk | 11 | 13/13 | 1 | 5 | 1 | 0 | 4 | 1 of 481 |
 | tj/commander.js | 9 | 170/170 | 0 | 2 | 0 | 0 | 2 | 0 of 181 |
 | winstonjs/winston | 29 | 82/82 | 1 | 5 | 1 | 0 | 4 | 3 of 518 |
@@ -19,7 +19,7 @@ Neither tool is ground truth. "Disagreement" means the two lists differ; the rea
 | debug-js/debug | 12 | 7/7 | 4 | 10 | 4 | 0 | 6 | 7 of 682 |
 | expressjs/body-parser | 14 | 14/14 | 0 | 2 | 0 | 0 | 2 | 0 of 274 |
 
-Totals over 13 repos that ran: mine 15, depcheck 84, in both 14, only mine 1, only depcheck 70.
+Totals over 13 repos that ran: mine 13, depcheck 84, in both 13, only mine 0, only depcheck 71.
 Repos where both tools report exactly the same set: 0 of 13.
 
 ## Disagreements
@@ -60,10 +60,10 @@ Repos where both tools report exactly the same set: 0 of 13.
 - **postcss/postcss**: only depcheck: `c8` - mine: mentioned in scripts/config (name, bin or shorthand)
 - **postcss/postcss**: only depcheck: `check-dts` - mine: mentioned in scripts/config (name, bin or shorthand)
 - **postcss/postcss**: only depcheck: `eslint` - mine: mentioned in scripts/config (name, bin or shorthand)
+- **postcss/postcss**: only depcheck: `simple-git-hooks` - mine: mentioned in scripts/config (name, bin or shorthand)
 - **postcss/postcss**: only depcheck: `size-limit` - mine: mentioned in scripts/config (name, bin or shorthand)
 - **postcss/postcss**: only depcheck: `ts-node` - mine: mentioned in scripts/config (name, bin or shorthand)
 - **postcss/postcss**: only depcheck: `typescript` - mine: peer dependency of @logux/oxc-configs
-- **axios/axios**: only mine: `lint-staged` - no occurrence outside package.json/lockfiles/docs (looks like a true ghost)
 - **axios/axios**: only depcheck: `@babel/core` - mine: peer dependency of @babel/preset-env
 - **axios/axios**: only depcheck: `@babel/preset-env` - mine: mentioned in scripts/config (name, bin or shorthand)
 - **axios/axios**: only depcheck: `@commitlint/cli` - mine: mentioned in scripts/config (name, bin or shorthand)
@@ -98,11 +98,11 @@ Repos where both tools report exactly the same set: 0 of 13.
 
 ## Agreed candidates
 
-- **fastify/fastify**: `@stylistic/eslint-plugin` (needed by neostandard), `@stylistic/eslint-plugin-js` (1)
+- **fastify/fastify**: `@stylistic/eslint-plugin` (needed by neostandard; lower confidence: likely loaded by eslint), `@stylistic/eslint-plugin-js` (1; lower confidence: likely loaded by eslint)
 - **expressjs/express**: `hbs` (9)
 - **mochajs/mocha**: `tsx` (2)
-- **postcss/postcss**: `@size-limit/preset-small-lib` (6), `multiocular` (17), `simple-git-hooks` (1)
-- **axios/axios**: `@vitest/browser` (needed by @vitest/browser-playwright)
+- **postcss/postcss**: `@size-limit/preset-small-lib` (6; lower confidence: likely loaded by size-limit), `multiocular` (17)
+- **axios/axios**: `@vitest/browser` (needed by @vitest/browser-playwright; lower confidence: likely loaded by vitest)
 - **chalk/chalk**: `yoctodelay` (1)
 - **winstonjs/winston**: `abstract-winston-transport` (3)
-- **debug-js/debug**: `karma-browserify` (4), `karma-chrome-launcher` (1), `karma-mocha` (1), `mocha-lcov-reporter` (1)
+- **debug-js/debug**: `karma-browserify` (4; lower confidence: likely loaded by karma), `karma-chrome-launcher` (1; lower confidence: likely loaded by karma), `karma-mocha` (1; lower confidence: likely loaded by karma), `mocha-lcov-reporter` (1; lower confidence: likely loaded by mocha)

@@ -11,6 +11,10 @@
     "filesCapped": false,
     "declared": 50,
     "sourceFiles": "282/282",
+    "loadedBy": {
+      "@stylistic/eslint-plugin": "eslint",
+      "@stylistic/eslint-plugin-js": "eslint"
+    },
     "perGhost": {
       "@stylistic/eslint-plugin": "needed by neostandard",
       "@stylistic/eslint-plugin-js": 1
@@ -78,6 +82,7 @@
     "filesCapped": false,
     "declared": 44,
     "sourceFiles": "141/141",
+    "loadedBy": {},
     "perGhost": {
       "hbs": 9
     },
@@ -115,6 +120,7 @@
     "filesCapped": false,
     "declared": 23,
     "sourceFiles": "82/82",
+    "loadedBy": {},
     "perGhost": {},
     "depcheck": [
       "c8",
@@ -152,6 +158,7 @@
     "filesCapped": false,
     "declared": 47,
     "sourceFiles": "274/274",
+    "loadedBy": {},
     "perGhost": {},
     "depcheck": [
       "c8",
@@ -206,6 +213,7 @@
     "filesCapped": true,
     "declared": 53,
     "sourceFiles": "300/478",
+    "loadedBy": {},
     "perGhost": {
       "tsx": 2
     },
@@ -278,19 +286,20 @@
     "repo": "postcss/postcss",
     "mine": [
       "@size-limit/preset-small-lib",
-      "multiocular",
-      "simple-git-hooks"
+      "multiocular"
     ],
-    "shed": 24,
+    "shed": 23,
     "before": 228,
-    "after": 204,
+    "after": 205,
     "filesCapped": false,
     "declared": 21,
     "sourceFiles": "63/63",
+    "loadedBy": {
+      "@size-limit/preset-small-lib": "size-limit"
+    },
     "perGhost": {
       "@size-limit/preset-small-lib": 6,
-      "multiocular": 17,
-      "simple-git-hooks": 1
+      "multiocular": 17
     },
     "depcheck": [
       "@size-limit/preset-small-lib",
@@ -305,8 +314,7 @@
     ],
     "both": [
       "@size-limit/preset-small-lib",
-      "multiocular",
-      "simple-git-hooks"
+      "multiocular"
     ],
     "mineOnly": [],
     "depcheckOnly": [
@@ -320,6 +328,10 @@
       },
       {
         "name": "eslint",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "simple-git-hooks",
         "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
       },
       {
@@ -339,18 +351,19 @@
   {
     "repo": "axios/axios",
     "mine": [
-      "@vitest/browser",
-      "lint-staged"
+      "@vitest/browser"
     ],
-    "shed": 2,
+    "shed": 0,
     "before": 540,
-    "after": 538,
+    "after": 540,
     "filesCapped": false,
     "declared": 42,
     "sourceFiles": "278/278",
+    "loadedBy": {
+      "@vitest/browser": "vitest"
+    },
     "perGhost": {
-      "@vitest/browser": "needed by @vitest/browser-playwright",
-      "lint-staged": 2
+      "@vitest/browser": "needed by @vitest/browser-playwright"
     },
     "depcheck": [
       "@babel/core",
@@ -369,12 +382,7 @@
     "both": [
       "@vitest/browser"
     ],
-    "mineOnly": [
-      {
-        "name": "lint-staged",
-        "why": "no occurrence outside package.json/lockfiles/docs (looks like a true ghost)"
-      }
-    ],
+    "mineOnly": [],
     "depcheckOnly": [
       {
         "name": "@babel/core",
@@ -433,6 +441,7 @@
     "filesCapped": false,
     "declared": 11,
     "sourceFiles": "13/13",
+    "loadedBy": {},
     "perGhost": {
       "yoctodelay": 1
     },
@@ -475,6 +484,7 @@
     "filesCapped": false,
     "declared": 9,
     "sourceFiles": "170/170",
+    "loadedBy": {},
     "perGhost": {},
     "depcheck": [
       "prettier",
@@ -504,6 +514,7 @@
     "filesCapped": false,
     "declared": 29,
     "sourceFiles": "82/82",
+    "loadedBy": {},
     "perGhost": {
       "abstract-winston-transport": 3
     },
@@ -546,6 +557,7 @@
     "filesCapped": false,
     "declared": 11,
     "sourceFiles": "112/112",
+    "loadedBy": {},
     "perGhost": {},
     "depcheck": [
       "nyc",
@@ -578,6 +590,12 @@
     "filesCapped": false,
     "declared": 12,
     "sourceFiles": "7/7",
+    "loadedBy": {
+      "karma-browserify": "karma",
+      "karma-chrome-launcher": "karma",
+      "karma-mocha": "karma",
+      "mocha-lcov-reporter": "mocha"
+    },
     "perGhost": {
       "karma-browserify": 4,
       "karma-chrome-launcher": 1,
@@ -639,6 +657,7 @@
     "filesCapped": false,
     "declared": 14,
     "sourceFiles": "14/14",
+    "loadedBy": {},
     "perGhost": {},
     "depcheck": [
       "eslint",

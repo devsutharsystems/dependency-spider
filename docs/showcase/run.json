@@ -1,5 +1,5 @@
 {
-  "date": "2026-10-16T09:18:08.855Z",
+  "date": "2026-10-16T11:54:39.164Z",
   "repo": {
     "owner": "postcss",
     "repo": "postcss"
@@ -11,9 +11,9 @@
   "eligible": 63,
   "configFiles": 1,
   "tree": 228,
-  "after": 204,
-  "shed": 24,
-  "percent": 10.5,
+  "after": 205,
+  "shed": 23,
+  "percent": 10.1,
   "capped": false,
   "filesCapped": false,
   "ghosts": [
@@ -21,19 +21,15 @@
       "name": "@size-limit/preset-small-lib",
       "section": "devDependencies",
       "shed": 6,
-      "stillNeededBy": null
+      "stillNeededBy": null,
+      "likelyLoadedBy": "size-limit"
     },
     {
       "name": "multiocular",
       "section": "devDependencies",
       "shed": 17,
-      "stillNeededBy": null
-    },
-    {
-      "name": "simple-git-hooks",
-      "section": "devDependencies",
-      "shed": 1,
-      "stillNeededBy": null
+      "stillNeededBy": null,
+      "likelyLoadedBy": null
     }
   ],
   "misplaced": [],
@@ -47,5 +43,5 @@
       "neededBy": "@logux/oxc-configs"
     }
   ],
-  "command": "npm uninstall -D @size-limit/preset-small-lib multiocular simple-git-hooks"
+  "command": "npm uninstall -D @size-limit/preset-small-lib multiocular"
 }

@@ -21,15 +21,14 @@
     ],
     "mine": [
       "@size-limit/preset-small-lib",
-      "multiocular",
-      "simple-git-hooks"
+      "multiocular"
     ],
     "mineInInstalled": [
       "@size-limit/preset-small-lib",
-      "multiocular",
-      "simple-git-hooks"
+      "multiocular"
     ],
     "stillOnlyDepcheck": [
+      "simple-git-hooks",
       "ts-node"
     ],
     "noLongerFlagged": [
