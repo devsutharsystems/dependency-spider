@@ -62,3 +62,6 @@ footer { margin-top: 24px; font-size: 11px; }
 .cards .muted, .cards h2 { font-family: system-ui, sans-serif; } .cards .muted { font-size: 11px; margin-top: -6px }
 .card .caveat { margin-top: 6px; font-family: system-ui, sans-serif; font-size: 11px; color: var(--muted); line-height: 1.35; }
 .card .badge { margin-top: 4px; font-family: system-ui, sans-serif; font-size: 11px; color: var(--amber); }
+button.small { padding: 4px 10px; font-size: 12px; font-weight: 600; }
+.anim-buttons { margin-top: 14px; }
+#replay { margin-top: 6px; }

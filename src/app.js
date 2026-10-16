@@ -4,6 +4,7 @@ import { fragility } from './registry.js';
 import { fragColor, Viz } from './viz.js';
 import { prText, ghostLine } from './report.js';
 import { buildCard } from './cards.js';
+import { deserializeResult } from './fixture.js';
 
 const $ = (id) => document.getElementById(id);
 const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -41,6 +42,7 @@ function resetUi() {
   $('summary').hidden = true;
   $('pr-box').hidden = true;
   $('also').hidden = true;
+  $('replay').hidden = true; $('skip').hidden = false; hud.mode = 'idle';
   $('pr-text').textContent = 'PR text';
   $('copy-cmd').textContent = 'Copy command';
   $('log').replaceChildren();
@@ -56,17 +58,42 @@ function resetUi() {
 
 function warn(text) { $('warnings').append(el('div', 'warn', text)); }
 
-function tweenCount(to, ms = 600) {
-  const node = $('count');
-  const from = Number(node.textContent) || 0;
-  if (reduced || from === to) { node.textContent = to; return; }
-  const t0 = performance.now();
-  const step = (now) => {
-    const t = Math.min(1, (now - t0) / ms);
-    node.textContent = Math.round(from + (to - from) * t);
-    if (t < 1) requestAnimationFrame(step);
+// DOM numbers are written at most 10 times a second, from what the spider has actually built (not per package).
+const hud = { mode: 'idle', count: 0 };
+let hudLast = '';
+function renderHud() {
+  if (hud.mode === 'build') {
+    const st = viz.stats;
+    const label = `of ${st.delivered} packages`;
+    const sig = `${st.laid}|${label}|${st.waiting}|${st.recent.length}|${st.recent.at(-1)?.name}`;
+    if (sig === hudLast) return;
+    hudLast = sig;
+    $('count').textContent = st.laid;
+    $('count-label').textContent = label;
+    $('bar-fill').style.width = `${st.delivered ? (st.laid / st.delivered) * 100 : 0}%`;
+    $('status').textContent = st.waiting ? 'the spider is waiting for npm to answer…' : (st.recent.at(-1) ? `anchoring ${st.recent.at(-1).name}` : 'the spider is lowering itself…');
+    $('log').replaceChildren(...st.recent.slice().reverse().map((r) => { const li = el('li'); const d = el('span', 'dot'); d.style.background = r.color; li.append(d, el('span', null, r.name)); return li; }));
+  } else if (hud.mode === 'prune') {
+    if ($('count').textContent !== String(hud.count)) $('count').textContent = hud.count;
+  }
+}
+setInterval(renderHud, 100);
+
+// One handler for pipeline events, shared by live scans and fixture replay.
+function makeEventHandler() {
+  return (e) => {
+    if (e.type === 'phase' && e.phase === 'scan') { $('count-label').textContent = 'reading the repo'; $('status').textContent = 'Listing files and reading package.json…'; }
+    if (e.type === 'package') {
+      const names = [...new Set([...Object.keys(e.pkg.dependencies || {}), ...Object.keys(e.pkg.devDependencies || {})])];
+      $('status').textContent = `package.json read: ${names.length} declared dependencies`;
+      viz.begin(names); // the spider lowers itself from the top while the files are fetched
+    }
+    if (e.type === 'files') { $('count').textContent = e.done; $('count-label').textContent = `of ${e.total} files fetched`; $('bar-fill').style.width = `${(e.done / e.total) * 100}%`; }
+    if (e.type === 'imports') $('status').textContent = `${e.count} distinct packages imported in the code`;
+    if (e.type === 'phase' && e.phase === 'crawl') { hud.mode = 'build'; hudLast = ''; $('count').textContent = '0'; $('count-label').textContent = 'packages'; $('bar-fill').style.width = '0%'; }
+    if (e.type === 'node') viz.addNode(e.node, fragility(e.node)); // handed to the spider; it gets there in its own time
+    if (e.type === 'modified') viz.setFrag(e.node.name, fragility(e.node));
   };
-  requestAnimationFrame(step);
 }
 
 async function start() {
@@ -75,33 +102,12 @@ async function start() {
   $('scan').disabled = true;
   resetUi();
   $('progress').hidden = false;
-  const logItems = [];
-  let fetched = 0;
   const withModified = $('stale').checked;
   try {
     const result = await runPipeline($('url').value, {
       token: $('token').value.trim() || undefined,
       withModified,
-      onEvent: (e) => {
-        if (e.type === 'phase' && e.phase === 'scan') { $('count-label').textContent = 'reading the repo'; $('status').textContent = 'Listing files and reading package.json…'; }
-        if (e.type === 'package') $('status').textContent = `package.json read: ${Object.keys(e.pkg.dependencies || {}).length + Object.keys(e.pkg.devDependencies || {}).length} declared dependencies`;
-        if (e.type === 'files') { $('count').textContent = e.done; $('count-label').textContent = `of ${e.total} files fetched`; $('bar-fill').style.width = `${(e.done / e.total) * 100}%`; }
-        if (e.type === 'imports') $('status').textContent = `${e.count} distinct packages imported in the code`;
-        if (e.type === 'phase' && e.phase === 'crawl') { fetched = 0; $('count').textContent = '0'; $('count-label').textContent = 'packages'; $('bar-fill').style.width = '0%'; }
-        if (e.type === 'node') {
-          fetched++;
-          viz.addNode(e.node, fragility(e.node));
-          viz.follow(e.node.name);
-          $('count').textContent = fetched;
-          $('count-label').textContent = `of ${e.count} packages`;
-          $('bar-fill').style.width = `${(fetched / e.count) * 100}%`;
-          $('status').textContent = `fetching ${e.node.name}`;
-          logItems.push([e.node.name, fragColor(fragility(e.node))]);
-          if (logItems.length > 8) logItems.shift();
-          $('log').replaceChildren(...logItems.slice().reverse().map(([n, c]) => { const li = el('li'); const d = el('span', 'dot'); d.style.background = c; li.append(d, el('span', null, n)); return li; }));
-        }
-        if (e.type === 'modified') viz.setFrag(e.node.name, fragility(e.node));
-      },
+      onEvent: makeEventHandler(),
     });
     current = result;
     await showResult(result);
@@ -115,8 +121,38 @@ async function start() {
   }
 }
 
+// Feeds a recorded scan (src/fixture.js) through the same handler a live scan uses, `rate` ms per package,
+// so the animation can be tested and replayed without the network.
+async function playResult(result, rate = 0) {
+  if (busy) return;
+  busy = true;
+  $('scan').disabled = true;
+  resetUi();
+  $('progress').hidden = false;
+  try {
+    const handler = makeEventHandler();
+    handler({ type: 'package', pkg: result.pkg });
+    handler({ type: 'phase', phase: 'crawl' });
+    const list = [...result.graph.nodes.values()];
+    for (let i = 0; i < list.length; i++) {
+      handler({ type: 'node', node: list[i], count: list.length });
+      if (rate && !viz.skipping && i % 4 === 3) await new Promise((r) => setTimeout(r, rate * 4));
+    }
+    current = result;
+    await showResult(result);
+  } finally {
+    busy = false;
+    $('scan').disabled = false;
+  }
+}
+
 async function showResult(r) {
   const s = r.shed;
+  viz.markGhosts(r.ghosts);
+  viz.finishDelivery();
+  await viz.built; // the spider finishes laying every delivered package before anything is cut
+  hud.mode = 'idle';
+  $('skip').hidden = false;
   $('log').replaceChildren();
   $('status').textContent = '';
   $('count-label').textContent = 'packages in your tree';
@@ -128,8 +164,6 @@ async function showResult(r) {
   if (r.registryErrors) warn(`${r.registryErrors} packages could not be read from the npm registry and are shown without their dependencies.`);
   if (r.counts.failedFiles) warn(`${r.counts.failedFiles} files could not be fetched and were skipped.`);
 
-  viz.applyTargets();
-  viz.markGhosts(r.ghosts);
   fillAlso(r);
 
   if (!r.ghosts.length) {
@@ -152,8 +186,9 @@ async function showResult(r) {
     $('cards').append(card);
   }
   await viz.wait(700);
+  hud.mode = 'prune'; hud.count = s.before;
   await viz.prune(s, {
-    onCount: (n) => tweenCount(n),
+    onCount: (n) => { hud.count = n; },
     onGhost: (name, state, info) => {
       const { card, state: stateEl } = cards.get(name);
       const g = s.perGhost.find((x) => x.name === name);
@@ -162,7 +197,9 @@ async function showResult(r) {
       else { card.className = 'card done'; stateEl.textContent = `cut: ${info.removed} ${info.removed === 1 ? 'package' : 'packages'} gone`; }
     },
   });
+  hud.mode = 'idle'; $('count').textContent = s.after;
   $('count-label').textContent = 'packages in your tree';
+  $('skip').hidden = true; $('replay').hidden = false;
   $('summary').hidden = false;
   const num = el('span', 'num', `-${s.combinedShed}`);
   $('sum-big').replaceChildren(num, document.createTextNode(` ${s.combinedShed === 1 ? 'package' : 'packages'}`));
@@ -185,6 +222,9 @@ function fillAlso(r) {
   section('Not reported: needed as a peer dependency', (r.peerKept || []).map((k) => `${k.name}: peer of ${k.neededBy}`));
   $('also').hidden = !body.childNodes.length;
 }
+
+$('skip').addEventListener('click', () => { viz.skip(); });
+$('replay').addEventListener('click', () => { if (current) playResult(current, 0); });
 
 $('form').addEventListener('submit', (e) => { e.preventDefault(); start(); });
 
@@ -218,4 +258,7 @@ $('dl-img').addEventListener('click', async () => {
 });
 
 const q = new URLSearchParams(location.search);
+if (q.get('fixture')) {
+  fetch(q.get('fixture')).then((r) => r.json()).then((j) => { $('url').value = `${j.repo.owner}/${j.repo.repo}`; playResult(deserializeResult(j), Number(q.get('rate') || 25)); });
+}
 if (q.get('repo')) { $('url').value = q.get('repo'); if (q.get('auto') !== '0') start(); }

@@ -28,6 +28,7 @@
     </details>
     <div id="error" class="error" role="alert" hidden></div>
     <div id="progress" hidden>
+      <div class="anim-buttons"><button id="skip" type="button" class="secondary small">Skip animation</button></div>
       <div class="counter"><span id="count">0</span><span id="count-label" class="muted"></span></div>
       <div class="bar"><div id="bar-fill"></div></div>
       <div class="status muted" id="status"></div>
@@ -46,6 +47,7 @@
       </div>
       <textarea id="pr-box" readonly hidden aria-label="PR description"></textarea>
       <p class="note">Candidates only. Re-run your tests before merging.</p>
+      <button id="replay" type="button" class="secondary small" hidden>Replay animation</button>
       <details id="also" hidden><summary>Also found</summary><div id="also-body"></div></details>
     </div>
     <footer class="muted">Follows each package's <code>latest</code> version on npm, ignores peer/optional deps. Colour = a staleness heuristic, not a security verdict. <a href="https://github.com/" id="repo-link" hidden></a></footer>
