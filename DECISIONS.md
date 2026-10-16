@@ -5,3 +5,9 @@
 - Node 24 rejects `node --test test/`; the test command is `node --test test/*.test.mjs` (`npm test`).
 - Crawl is level-synchronous BFS (8 parallel within a level): simpler than a worker pool, deterministic levels.
 - Packages whose name is also a Node built-in (e.g. `events`, `buffer`) are never reported as ghosts: `require('events')` resolves to core, so we cannot tell.
+- Removal tests (express, postcss) were run in throwaway clones outside the project, using the repos' own scripts. postcss needs pnpm (`npm install` fails with ERESOLVE), run through `npx pnpm@12.11.2` with the repo's lockfile. Tally: 4 candidates tested, 3 wrong, 1 unconfirmed, 0 confirmed unused (see results/removal-test*.md).
+- Config-key rule: a top-level package.json key whose name equals a declared package counts as a mention. Added after the postcss test showed `simple-git-hooks` was a scanner bug. Metadata keys and dependency maps are in a skip-list and never count. The postcss removal test predates this fix.
+- "Lower confidence" badge: general rule (scope equal to a used package's name, or name starting with `<used package>-`, parent at least 4 characters), no name lists. Heuristic, not validated, written after seeing postcss and debug.
+- `validate.mjs --reuse` keeps depcheck's earlier output and re-runs only the scanner side, because depcheck does not depend on this code and three clones were later npm-installed (a fresh no-install run would be contaminated). `depcheck-installed.mjs --recompute` does the same for the installed comparison.
+- The depcheck "installed" comparison used `npm install --ignore-scripts --legacy-peer-deps` in the clones (3 repos only).
+- Every demo number in docs comes from a dated run; the UI contains none.
