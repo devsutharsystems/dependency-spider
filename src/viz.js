@@ -1,37 +1,36 @@
 // Canvas drawing for the web-building animation. What happens (and when) is decided by choreo.js; this file draws it.
 //
-// Layers, bottom to top (a frame never repaints the whole web):
-//   CSS background + vignette   the theme's gradient and glow, painted by the browser once (see style.css)
-//   dust layer                  a tiny canvas drawn once and drifted by a CSS animation (no JavaScript per frame)
-//   static layer (#web)         rings, silk and packages the spider has anchored; drawn into only when something is
-//                               added (one thread + one dot) or removed (one batched redraw per cut)
-//   live layer                  the spider, the thread being laid, glints, sparks, falling packages; cleared with a
-//                               dirty rectangle around those few things
-// Depth cues are 2.5D and cheap: pre-rendered sphere sprites (per colour and depth level), deeper rings smaller,
-// dimmer and fogged toward the background, thread brightness falling off with depth, a subtle CSS perspective tilt.
-// No shadowBlur, no filters, no gradients created inside the frame loop. devicePixelRatio is clamped to 2.
+// Two stacked canvases, so a frame never repaints the whole web:
+//   static layer (#web)  rings, threads and packages the spider has anchored. Only drawn when something is
+//                        added (one thread + one dot per package) or removed (one batched redraw per cut).
+//   live layer           the spider, the thread being laid, dew glints, snip flashes and falling packages. It is
+//                        cleared with a dirty rectangle around those few things, not the full canvas.
+// No shadowBlur, no filters: glows are pre-rendered sprites. devicePixelRatio is clamped to 2.
 import { HUB, MAX_RING, WebLayout, Planner, PACE, toXY, lengthOf, pointAlong } from './choreo.js';
-import { theme, fragColor, RING_FROM } from './theme.js';
-import { mix, rgba } from './color.js';
 
-export { fragColor };
+const GREEN = [61, 220, 151], AMBER = [255, 184, 77], RED = [255, 77, 94];
+const lerp = (a, b, t) => a + (b - a) * t;
+const mix = (c1, c2, t) => c1.map((v, i) => Math.round(lerp(v, c2[i], t)));
 
-const NB = 16; // colour buckets; sprite index NB = "not on npm" (hollow), NB + 1 = grey sphere (falling packages)
-const LEVELS = 4; // depth levels by ring: 1, 2, 3-4, 5-6
-const levelOf = (ring) => (ring <= 1 ? 0 : ring === 2 ? 1 : ring <= 4 ? 2 : 3);
-const BASE_R = [3.7, 3.2, 2.7, 2.2];
-const FOG = [0, 0.1, 0.22, 0.34]; // how far a colour is mixed toward the background at each level
-const DIM = [1, 0.95, 0.86, 0.74];
+// fragility 0..1 -> green -> amber -> red
+export function fragColor(f) {
+  const c = f < 0.5 ? mix(GREEN, AMBER, f / 0.5) : mix(AMBER, RED, (f - 0.5) / 0.5);
+  return `rgb(${c[0]},${c[1]},${c[2]})`;
+}
+const NB = 16; // colour buckets: the static redraw batches packages into one Path2D per bucket
+const BUCKET_COLORS = Array.from({ length: NB }, (_, i) => fragColor(i / (NB - 1)));
 const bucketOf = (f) => Math.max(0, Math.min(NB - 1, Math.round(f * (NB - 1))));
-const TWO_PI = Math.PI * 2;
-const MAX_SPARKS = 60;
+const radiusOf = (depth) => (depth <= 1 ? 3.2 : depth === 2 ? 2.6 : 2.1);
 
-function glowSprite(color, size, alpha = 0.55) {
+const EDGE = 'rgba(110,140,220,0.22)', CROSS = 'rgba(110,140,220,0.06)', THREAD = 'rgba(205,225,255,0.95)', RING = 'rgba(125,138,165,0.10)';
+const TWO_PI = Math.PI * 2;
+
+function glowSprite(color, size) {
   const c = document.createElement('canvas');
   c.width = c.height = size;
   const g = c.getContext('2d');
   const grad = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-  grad.addColorStop(0, rgba(color, alpha)); grad.addColorStop(1, rgba(color, 0));
+  grad.addColorStop(0, color); grad.addColorStop(1, 'rgba(0,0,0,0)');
   g.fillStyle = grad; g.fillRect(0, 0, size, size);
   return c;
 }
@@ -42,47 +41,27 @@ export class Viz {
   constructor(canvas, { reducedMotion = false } = {}) {
     this.canvas = canvas; // static layer
     this.ctx = canvas.getContext('2d');
-    this.wrap = canvas.parentElement;
-    this.hint = document.getElementById('hint');
-    // tilt container: dust, static and live layers live inside it so one CSS transform tilts them together
-    this.tilt = document.createElement('div');
-    this.tilt.className = 'tilt';
-    this.dust = document.createElement('canvas');
-    this.dust.className = 'dust';
-    this.dust.setAttribute('aria-hidden', 'true');
     this.live = document.createElement('canvas');
     this.live.setAttribute('aria-hidden', 'true');
     this.live.style.cssText = 'position:absolute;inset:0;display:block;pointer-events:none';
-    this.wrap.insertBefore(this.tilt, canvas);
-    this.tilt.append(this.dust, canvas, this.live);
+    canvas.after(this.live);
     this.lctx = this.live.getContext('2d');
     this.reduced = reducedMotion;
-    this.tiltOn = !reducedMotion && !window.matchMedia('(hover: none), (pointer: coarse)').matches;
-    this.tx = 0; this.ty = 0; this.cx2 = 0; this.cy2 = 0; this.tiltApplied = '';
-    if (this.tiltOn) {
-      this.wrap.addEventListener('pointermove', (e) => {
-        if (window.innerWidth <= 820) return;
-        const r = this.wrap.getBoundingClientRect();
-        this.ty = ((e.clientX - r.left) / r.width - 0.5) * 2 * 4; // rotateY, max 4 degrees
-        this.tx = -((e.clientY - r.top) / r.height - 0.5) * 2 * 4; // rotateX
-      });
-      this.wrap.addEventListener('pointerleave', () => { this.tx = 0; this.ty = 0; });
-    }
+    this.glowBlue = glowSprite('rgba(120,170,255,0.55)', 64);
+    this.glowRed = glowSprite('rgba(255,77,94,0.6)', 48);
+    this.glowWhite = glowSprite('rgba(255,255,255,0.95)', 32);
     this.glints = Array.from({ length: 48 }, () => ({ x: 0, y: 0, t: -1 }));
     this.flashes = Array.from({ length: 8 }, () => ({ x: 0, y: 0, t: -1 }));
     this.stubs = Array.from({ length: 8 }, () => ({ ax: 0, ay: 0, bx: 0, by: 0, jx: 0, jy: 0, t: -1 }));
-    this.falling = Array.from({ length: 600 }, () => ({ on: false, started: false, x: 0, y: 0, vy: 0, px: 0, py: 0, bucket: 0, lv: 0, delay: 0, t: 0 }));
-    this.spark = { x: new Float32Array(MAX_SPARKS), y: new Float32Array(MAX_SPARKS), vx: new Float32Array(MAX_SPARKS), vy: new Float32Array(MAX_SPARKS), life: new Float32Array(MAX_SPARKS), max: new Float32Array(MAX_SPARKS), n: 0 };
+    this.falling = Array.from({ length: 600 }, () => ({ on: false, started: false, x: 0, y: 0, vy: 0, px: 0, py: 0, bucket: 0, r: 2, delay: 0, t: 0 }));
     this.out = { x: 0, y: 0, hx: 0, hy: 0 };
     this.recent = [];
     this.dirty = { x0: 0, y0: 0, x1: 0, y1: 0, on: false };
     this.gi = -1; this.fi = -1; this.si = -1;
-    this.w = 0; this.h = 0; this.cx = 0; this.cy = 0; this.R = 0; this.geom = { cx: 0, cy: 0, R: 0 }; this.dpr = 1;
-    this.spr = []; this.styles = null;
-    this.buildStyles();
+    this.w = 0; this.h = 0; this.cx = 0; this.cy = 0; this.R = 0; this.geom = { cx: 0, cy: 0, R: 0 };
     this.reset();
     this.resize();
-    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => this.resize()).observe(this.wrap);
+    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => this.resize()).observe(canvas.parentElement);
     this.frame = this.frame.bind(this);
     this.last = performance.now();
     this.running = true;
@@ -92,129 +71,31 @@ export class Viz {
     });
   }
 
-  // ---- theme-dependent assets (rebuilt only when the theme or the pixel ratio changes) ---------------------------
-
-  buildStyles() {
-    const t = theme;
-    const glowA = t.dark ? [0.09, 0.07, 0.05, 0.035] : [0.06, 0.045, 0.03, 0.02];
-    const coreA = t.dark ? [0.55, 0.42, 0.32, 0.22] : [0.6, 0.48, 0.36, 0.25]; // thread brightness falls off with depth
-    this.styles = {
-      glow: glowA.map((a) => rgba(t.thread, a)), core: coreA.map((a) => rgba(t.thread, a)),
-      cross: rgba(t.thread, t.dark ? 0.06 : 0.1), dew: rgba('#ffffff', t.dark ? 0.55 : 0.95),
-      ghost: rgba(t.ring, 0.85), threadLive: mix(t.thread, t.dark ? '#ffffff' : '#000000', 0.45),
-      ringLine: t.ringLine, comp: t.additive ? 'lighter' : 'source-over',
-    };
-    this.glowBlue = glowSprite(t.spiderGlow, 64, t.dark ? 0.6 : 0.3);
-    this.glowRing = glowSprite(t.ring, 48, 0.6);
-    this.glowWhite = glowSprite('#ffffff', 32, 0.95);
-    this.glowSpark = glowSprite(t.ring === t.thread ? '#ffffff' : mix(t.ring, '#ffffff', 0.35), 24, 0.95);
-  }
-
-  buildSprites() {
-    const t = theme, dpr = this.dpr;
-    this.spr = [];
-    for (let L = 0; L < LEVELS; L++) {
-      const row = [], r = BASE_R[L];
-      for (let b = 0; b < NB + 2; b++) {
-        const f = b / (NB - 1);
-        const base = b < NB ? fragColor(f) : b === NB ? t.cmiss : mix(t.muted, t.bg1, 0.35);
-        const col = mix(base, t.bg1, FOG[L]); // fog toward the background
-        const ring = b < NB && f >= RING_FROM;
-        const half = r + 3 + (ring ? 2.6 : 0);
-        const size = half * 2;
-        const c = document.createElement('canvas');
-        c.width = c.height = Math.ceil(size * dpr);
-        const g = c.getContext('2d');
-        g.scale(c.width / size, c.height / size);
-        g.globalAlpha = DIM[L];
-        if (b === NB) { // not on npm: hollow
-          g.fillStyle = rgba(col, 0.16); g.beginPath(); g.arc(half, half, r, 0, TWO_PI); g.fill();
-          g.strokeStyle = col; g.lineWidth = 1.3; g.beginPath(); g.arc(half, half, r - 0.4, 0, TWO_PI); g.stroke();
-        } else {
-          const grad = g.createRadialGradient(half - r * 0.35, half - r * 0.4, r * 0.08, half, half, r * 1.05);
-          grad.addColorStop(0, mix(col, '#ffffff', 0.6)); grad.addColorStop(0.5, col); grad.addColorStop(1, mix(col, '#000000', t.dark ? 0.5 : 0.4));
-          g.fillStyle = grad; g.beginPath(); g.arc(half, half, r, 0, TWO_PI); g.fill();
-          g.strokeStyle = rgba(mix(col, '#ffffff', 0.65), 0.5); g.lineWidth = 0.7; // soft rim light, lower right
-          g.beginPath(); g.arc(half, half, r - 0.35, 0.1 * Math.PI, 0.7 * Math.PI); g.stroke();
-          g.fillStyle = rgba('#ffffff', t.dark ? 0.85 : 0.95); // dewdrop specular highlight
-          g.beginPath(); g.ellipse(half - r * 0.38, half - r * 0.42, r * 0.3, r * 0.2, -0.6, 0, TWO_PI); g.fill();
-          if (ring) { g.strokeStyle = rgba(col, 0.9); g.lineWidth = 1; g.beginPath(); g.arc(half, half, r + 2.4, 0, TWO_PI); g.stroke(); }
-        }
-        row.push({ c, half, size });
-      }
-      this.spr.push(row);
-    }
-    // the spider: halo + body, pre-rendered (legs are drawn per frame because they move)
-    const S = 72, sc = document.createElement('canvas');
-    sc.width = sc.height = Math.ceil(S * dpr);
-    const g = sc.getContext('2d');
-    g.scale(sc.width / S, sc.height / S);
-    const m = S / 2;
-    const halo = g.createRadialGradient(m, m, 2, m, m, m);
-    halo.addColorStop(0, rgba(t.spiderGlow, t.dark ? 0.55 : 0.25)); halo.addColorStop(1, rgba(t.spiderGlow, 0));
-    g.fillStyle = halo; g.fillRect(0, 0, S, S);
-    const ab = g.createRadialGradient(m - 1.5, m + 1.5, 0.5, m, m + 3, 8);
-    ab.addColorStop(0, mix(t.spider, '#ffffff', t.dark ? 0 : 0.35)); ab.addColorStop(1, mix(t.spider, t.dark ? '#7a8bb5' : '#000000', 0.45));
-    g.fillStyle = ab; g.beginPath(); g.ellipse(m, m + 3.2, 4.6, 6.6, 0, 0, TWO_PI); g.fill();
-    g.fillStyle = rgba(t.accent, 0.8); g.beginPath(); g.ellipse(m, m + 3.8, 1.1, 2.4, 0, 0, TWO_PI); g.fill(); // abdomen mark
-    g.fillStyle = t.spider; g.beginPath(); g.arc(m, m - 4.4, 2.9, 0, TWO_PI); g.fill();
-    g.fillStyle = t.dark ? '#0b1226' : '#f7f2ea'; g.beginPath(); g.arc(m - 1.1, m - 5.2, 0.55, 0, TWO_PI); g.arc(m + 1.1, m - 5.2, 0.55, 0, TWO_PI); g.fill();
-    this.spiderSprite = sc;
-    this.spiderSize = S;
-  }
-
-  // Called when the theme changes: rebuild sprites, dust and the static layer. The page applies the CSS variables.
-  themeChanged() {
-    this.buildStyles(); this.buildSprites(); this.drawDust(); this.redrawStatic(); this.clearLive(true);
-  }
-
-  drawDust() {
-    const d = this.dust, w = Math.max(10, Math.round(this.w * 1.12)), h = Math.max(10, Math.round(this.h * 1.12));
-    d.width = w; d.height = h;
-    const c = d.getContext('2d');
-    c.clearRect(0, 0, w, h);
-    let seed = 12345;
-    const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
-    for (let i = 0; i < 110; i++) {
-      const x = rnd() * w, y = rnd() * h, s = 0.4 + rnd() * rnd() * 1.4;
-      c.fillStyle = rgba(theme.dust, 0.06 + rnd() * 0.3); c.beginPath(); c.arc(x, y, s, 0, TWO_PI); c.fill();
-    }
-  }
-
   reset() {
-    this.sprites = new Map(); // name -> {name, depth, parent, deps, missing, bucket, angle, ring, lv, x, y, laid, removed, ghost, cut, stillNeeded}
+    this.sprites = new Map(); // name -> {name, depth, parent, deps, missing, bucket, angle, ring, x, y, laid, removed, ghost, cut, stillNeeded}
     this.laidList = [];
     this.layout = null; this.planner = null;
     this.hub = { x: this.cx, y: this.cy };
     this.dropTop = { x: this.cx, y: -30 };
     this.step = null; this.dropStarted = false; this.dropDone = false;
     this.deliveryDone = false; this.skipping = false; this.crossOn = false; this.pruning = false;
-    this.idle = true; // before the first scan the spider hangs from the top and sways
     this.at = HUB; // where the spider is resting
-    this.spider = { x: this.cx, y: this.idleY(), heading: Math.PI / 2, phase: 0, moving: false };
+    this.spider = { x: this.cx, y: -30, heading: Math.PI / 2, phase: 0, moving: false };
     this.waiting = false;
     this.delivered = 0; this.laidCount = 0; this.recent.length = 0;
     for (const g of this.glints) g.t = -1;
     for (const f of this.flashes) f.t = -1;
     for (const s of this.stubs) s.t = -1;
     for (const f of this.falling) f.on = false;
-    this.spark.n = 0; this.spark.life.fill(0);
     this.removedCount = 0; this.beforeCount = 0; this.hooks = null; this.focusName = null;
     this.staticDirty = false; this.lastStatic = 0;
     this.built = new Promise((r) => { this.resolveBuilt = r; });
-    this.setHint(true);
     if (this.w) { this.redrawStatic(); this.clearLive(true); }
   }
 
-  idleY() { return Math.max(120, Math.min(260, (this.h || 400) * 0.3)); }
-
-  setHint(on) { if (this.hint) this.hint.classList.toggle('hidden', !on); }
-
   resize() {
-    const r = this.wrap.getBoundingClientRect();
+    const r = this.canvas.parentElement.getBoundingClientRect();
     const dpr = Math.min(2, window.devicePixelRatio || 1);
-    const dprChanged = dpr !== this.dpr;
-    this.dpr = dpr;
     this.w = Math.max(200, r.width); this.h = Math.max(200, r.height);
     for (const c of [this.canvas, this.live]) {
       c.width = Math.round(this.w * dpr); c.height = Math.round(this.h * dpr);
@@ -227,24 +108,22 @@ export class Viz {
     this.hub.x = this.cx; this.hub.y = this.cy; this.dropTop.x = this.cx; this.dropTop.y = -30; // mutated in place: steps hold these objects
     for (const s of this.sprites.values()) { const p = toXY(s.name, s.angle, s.ring, this.geom); s.x = p.x; s.y = p.y; }
     if (this.step) this.step.len = lengthOf(this.step.pts);
-    if (!this.dropStarted) { this.spider.x = this.cx; this.spider.y = this.idleY(); }
+    if (!this.dropStarted) { this.spider.x = this.cx; this.spider.y = -30; }
     else if (!this.step) { const at = this.posOf(this.at); this.spider.x = at.x; this.spider.y = at.y; }
-    if (dprChanged || !this.spr.length) this.buildSprites();
-    this.drawDust();
     this.redrawStatic();
     this.clearLive(true);
   }
 
   // ---- data in --------------------------------------------------------------------------------------------
 
-  // Called when package.json is read: the spider continues its drop from where it hangs and anchors the hub.
+  // Called when package.json is read: the spider starts its intro drop while the files are still being fetched.
   begin(rootNames) {
     this.layout = new WebLayout(rootNames);
     this.planner = new Planner((n) => this.posOf(n));
-    this.dropStarted = true; this.idle = false; this.setHint(false);
+    this.dropStarted = true;
     if (this.reduced) { this.dropDone = true; this.spider.x = this.hub.x; this.spider.y = this.hub.y; this.redrawStatic(); return; }
     const pts = [this.dropTop, this.hub];
-    this.step = { kind: 'drop', names: [HUB], pts, len: lengthOf(pts), dist: Math.max(0, Math.min(this.spider.y - this.dropTop.y, this.hub.y - this.dropTop.y)), speed: (this.hub.y + 30) / PACE.dropSeconds, pause: PACE.hubPause, state: 'travel', restLeft: 0 };
+    this.step = { kind: 'drop', names: [HUB], pts, len: lengthOf(pts), dist: 0, speed: (this.hub.y + 30) / PACE.dropSeconds, pause: PACE.hubPause, state: 'travel', restLeft: 0 };
   }
 
   posOf(name) { return name === HUB ? this.hub : this.sprites.get(name); }
@@ -254,7 +133,7 @@ export class Viz {
     if (!this.layout) this.begin([]);
     const { angle, ring } = this.layout.place(node);
     const p = toXY(node.name, angle, ring, this.geom);
-    this.sprites.set(node.name, { name: node.name, depth: node.depth, parent: node.parent, deps: node.deps || [], missing: !!node.missing, bucket: bucketOf(frag), angle, ring, lv: levelOf(ring), x: p.x, y: p.y, laid: false, removed: false, ghost: false, cut: false, stillNeeded: null });
+    this.sprites.set(node.name, { name: node.name, depth: node.depth, parent: node.parent, deps: node.deps || [], missing: !!node.missing, bucket: bucketOf(frag), angle, ring, x: p.x, y: p.y, laid: false, removed: false, ghost: false, cut: false, stillNeeded: null });
     this.planner.deliver(node);
     this.delivered++;
     if (this.reduced || this.skipping) this.drain();
@@ -287,51 +166,44 @@ export class Viz {
 
   // ---- static layer ---------------------------------------------------------------------------------------
 
-  spriteOf(s) { return this.spr[s.lv][s.missing ? NB : s.bucket]; }
-
-  drawNodeSprite(c, s) { const sp = this.spriteOf(s); c.drawImage(sp.c, s.x - sp.half, s.y - sp.half, sp.size, sp.size); }
-
   anchor(s, glint = true) {
     s.laid = true; this.laidList.push(s); this.laidCount++;
     const p = s.parent ? this.sprites.get(s.parent) : this.hub;
-    const c = this.ctx, st = this.styles;
-    c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(s.x, s.y);
-    c.strokeStyle = st.glow[s.lv]; c.lineWidth = 3.4; c.stroke(); // wide faint pass
-    c.strokeStyle = st.core[s.lv]; c.lineWidth = 1; c.stroke(); // thin bright core
-    this.drawNodeSprite(c, s);
+    const c = this.ctx;
+    c.strokeStyle = EDGE; c.lineWidth = 1; c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(s.x, s.y); c.stroke();
+    c.fillStyle = s.missing ? '#4a5470' : BUCKET_COLORS[s.bucket];
+    c.beginPath(); c.arc(s.x, s.y, radiusOf(s.depth), 0, TWO_PI); c.fill();
     if (glint) { this.gi = (this.gi + 1) % this.glints.length; const g = this.glints[this.gi]; g.x = s.x; g.y = s.y; g.t = performance.now(); }
-    this.recent.push({ name: s.name, color: s.missing ? theme.cmiss : fragColor(s.bucket / (NB - 1)) });
+    this.recent.push({ name: s.name, color: BUCKET_COLORS[s.bucket] });
     if (this.recent.length > 8) this.recent.shift();
   }
 
   redrawStatic() {
-    const c = this.ctx, st = this.styles;
+    const c = this.ctx;
     c.clearRect(0, 0, this.w, this.h);
-    c.lineWidth = 1; c.strokeStyle = st.ringLine;
+    c.lineWidth = 1; c.strokeStyle = RING;
     for (let d = 1; d <= MAX_RING; d++) { c.beginPath(); c.arc(this.cx, this.cy, (this.R * d) / MAX_RING, 0, TWO_PI); c.stroke(); }
-    const tree = Array.from({ length: LEVELS }, () => new Path2D()), cross = new Path2D(), red = new Path2D(), dew = new Path2D();
+    const tree = new Path2D(), cross = new Path2D(), red = new Path2D();
+    const buckets = Array.from({ length: NB }, () => new Path2D());
     const live = (s) => s && s.laid && !s.removed;
     for (const s of this.laidList) {
       if (s.removed) continue;
       const p = s.parent ? this.sprites.get(s.parent) : this.hub;
       if (s.parent && !live(p)) continue;
       if (s.ghost && this.pruning) { if (!s.cut) { red.moveTo(p.x, p.y); red.lineTo(s.x, s.y); } }
-      else {
-        tree[s.lv].moveTo(p.x, p.y); tree[s.lv].lineTo(s.x, s.y);
-        if (Math.hypot(s.x - p.x, s.y - p.y) > 40) { const mx = (p.x + s.x) / 2, my = (p.y + s.y) / 2; dew.moveTo(mx + 0.9, my); dew.arc(mx, my, 0.9, 0, TWO_PI); } // a dew bead on longer threads
-      }
+      else { tree.moveTo(p.x, p.y); tree.lineTo(s.x, s.y); }
       if (this.crossOn) for (const d of s.deps) { const t = this.sprites.get(d); if (live(t) && t.parent !== s.name) { cross.moveTo(s.x, s.y); cross.lineTo(t.x, t.y); } }
+      const b = buckets[s.missing ? 0 : s.bucket], r = radiusOf(s.depth);
+      b.moveTo(s.x + r, s.y); b.arc(s.x, s.y, r, 0, TWO_PI);
     }
-    c.lineWidth = 3.4; for (let L = 0; L < LEVELS; L++) { c.strokeStyle = st.glow[L]; c.stroke(tree[L]); } // wide faint pass
-    c.lineWidth = 1; for (let L = 0; L < LEVELS; L++) { c.strokeStyle = st.core[L]; c.stroke(tree[L]); } // thin bright core
-    if (this.crossOn) { c.strokeStyle = st.cross; c.stroke(cross); }
-    c.strokeStyle = st.ghost; c.lineWidth = 1.4; c.stroke(red); c.lineWidth = 1;
-    c.fillStyle = st.dew; c.fill(dew);
-    for (const s of this.laidList) if (!s.removed) this.drawNodeSprite(c, s);
-    for (const s of this.laidList) { // candidates (and the still-needed ones) are drawn on top of the sprites
+    c.strokeStyle = EDGE; c.stroke(tree);
+    if (this.crossOn) { c.strokeStyle = CROSS; c.stroke(cross); }
+    c.strokeStyle = 'rgba(255,77,94,0.8)'; c.lineWidth = 1.4; c.stroke(red); c.lineWidth = 1;
+    for (let i = 0; i < NB; i++) { c.fillStyle = BUCKET_COLORS[i]; c.fill(buckets[i]); }
+    for (const s of this.laidList) { // candidates (and the still-needed ones) are drawn on top of the batches
       if (s.removed || !(this.pruning && s.ghost)) continue;
-      c.fillStyle = s.stillNeeded ? theme.c1 : theme.ring; c.beginPath(); c.arc(s.x, s.y, 3.8, 0, TWO_PI); c.fill();
-      if (s.stillNeeded) { c.strokeStyle = theme.c1; c.lineWidth = 1.5; c.beginPath(); c.arc(s.x, s.y, 7, 0, TWO_PI); c.stroke(); c.lineWidth = 1; }
+      c.fillStyle = s.stillNeeded ? '#ffb84d' : '#ff4d5e'; c.beginPath(); c.arc(s.x, s.y, 3.6, 0, TWO_PI); c.fill();
+      if (s.stillNeeded) { c.strokeStyle = 'rgba(255,184,77,0.9)'; c.lineWidth = 1.5; c.beginPath(); c.arc(s.x, s.y, 7, 0, TWO_PI); c.stroke(); c.lineWidth = 1; }
     }
     if (this.dropDone) this.drawHub();
     this.staticDirty = false; this.lastStatic = performance.now();
@@ -339,9 +211,8 @@ export class Viz {
 
   drawHub() {
     const c = this.ctx;
-    c.drawImage(this.glowBlue, this.hub.x - 18, this.hub.y - 18, 36, 36);
-    c.fillStyle = theme.spider; c.beginPath(); c.arc(this.hub.x, this.hub.y, 4.8, 0, TWO_PI); c.fill();
-    c.strokeStyle = rgba(theme.thread, 0.6); c.lineWidth = 1; c.beginPath(); c.arc(this.hub.x, this.hub.y, 8.5, 0, TWO_PI); c.stroke();
+    c.fillStyle = '#f2f6ff'; c.beginPath(); c.arc(this.hub.x, this.hub.y, 4.5, 0, TWO_PI); c.fill();
+    c.strokeStyle = 'rgba(160,190,255,0.5)'; c.lineWidth = 1; c.beginPath(); c.arc(this.hub.x, this.hub.y, 8, 0, TWO_PI); c.stroke();
   }
 
   // ---- the spider's moves ---------------------------------------------------------------------------------
@@ -411,19 +282,7 @@ export class Viz {
       f.vy += 1100 * dt; f.y += f.vy * dt;
       if (f.t - f.delay > 1) f.on = false;
     }
-    const k = this.spark; // snip sparks
-    for (let i = 0; i < MAX_SPARKS; i++) {
-      if (k.life[i] <= 0) continue;
-      k.life[i] -= dt; k.x[i] += k.vx[i] * dt; k.y[i] += k.vy[i] * dt; k.vx[i] *= 1 - 2.2 * dt; k.vy[i] = k.vy[i] * (1 - 2.2 * dt) + 120 * dt;
-    }
     if (this.staticDirty && now - this.lastStatic > 250) this.redrawStatic();
-    if (this.tiltOn) { // eased pointer tilt, written to CSS only when it actually changes
-      const k2 = Math.min(1, dt * 6);
-      this.cx2 += (this.tx - this.cx2) * k2; this.cy2 += (this.ty - this.cy2) * k2;
-      const flat = Math.abs(this.cx2) < 0.01 && Math.abs(this.cy2) < 0.01;
-      const tr = flat ? '' : `perspective(1100px) rotateX(${this.cx2.toFixed(2)}deg) rotateY(${this.cy2.toFixed(2)}deg)`;
-      if (tr !== this.tiltApplied) { this.tilt.style.transform = tr; this.tiltApplied = tr; }
-    }
   }
 
   // ---- live layer -----------------------------------------------------------------------------------------
@@ -445,21 +304,14 @@ export class Viz {
   }
 
   drawLive(now) {
-    const c = this.lctx, sp = this.spider, st = this.step, sty = this.styles;
+    const c = this.lctx, sp = this.spider, st = this.step;
     this.clearLive(false);
-    if (this.idle) { this.drawIdle(c, now); return; }
     if (st && st.state === 'travel' && (st.kind === 'lay' || st.kind === 'drop')) { // the thread being laid: its tip IS the spider
       const a = st.pts[0];
-      c.strokeStyle = sty.threadLive; c.lineWidth = st.kind === 'drop' ? 1 : 1.5;
+      c.strokeStyle = THREAD; c.lineWidth = st.kind === 'drop' ? 1 : 1.4;
       c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(sp.x, sp.y); c.stroke();
       this.touch(a.x, a.y, 6); this.touch(sp.x, sp.y, 6);
-      if (st.kind === 'lay' && !this.reduced) { // a short bright glint travels along the thread behind the spider
-        const ph = (now % 240) / 240, gx = sp.x + (a.x - sp.x) * ph, gy = sp.y + (a.y - sp.y) * ph;
-        c.globalCompositeOperation = sty.comp; c.globalAlpha = 0.9 * (1 - ph * 0.6);
-        c.drawImage(this.glowWhite, gx - 6, gy - 6, 12, 12); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
-      }
     }
-    c.globalCompositeOperation = sty.comp;
     for (const g of this.glints) { // dew glint where a thread was just anchored
       if (g.t < 0) continue;
       const k = (now - g.t) / 450;
@@ -467,45 +319,25 @@ export class Viz {
       const r = 5 + k * 9;
       c.globalAlpha = 0.9 * (1 - k); c.drawImage(this.glowWhite, g.x - r, g.y - r, r * 2, r * 2); this.touch(g.x, g.y, 16);
     }
-    c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
+    c.globalAlpha = 1;
     if (this.pruning) this.drawPrune(c, now);
     this.drawSpider(c, now);
     if (this.focusName) this.drawLabel(c);
   }
 
-  // Before the first scan: the spider hangs from the top on a thread and sways; the rings shimmer so they are never dead.
-  drawIdle(c, now) {
-    const sp = this.spider;
-    if (!this.reduced) {
-      const sway = Math.sin(now / 1300) * 0.1, len = this.idleY() + 4;
-      sp.x = this.cx + Math.sin(sway) * len; sp.y = -4 + Math.cos(sway) * len; sp.heading = Math.PI / 2 + sway;
-      c.strokeStyle = rgba(theme.thread, 0.7); c.lineWidth = 1;
-      c.beginPath(); c.moveTo(this.cx, -4); c.lineTo(sp.x, sp.y); c.stroke();
-      c.strokeStyle = rgba(theme.thread, theme.dark ? 0.28 : 0.4); c.lineWidth = 1.4; c.lineCap = 'round';
-      for (let d = 1; d <= MAX_RING; d++) { // a slow bright arc travels around each ring at its own speed
-        const a0 = now / (2400 + d * 700) * (d % 2 ? 1 : -1) + d;
-        c.beginPath(); c.arc(this.cx, this.cy, (this.R * d) / MAX_RING, a0, a0 + 0.55); c.stroke();
-      }
-      c.lineCap = 'butt';
-      this.touch(this.cx - this.R - 4, this.cy - this.R - 4, 0); this.touch(this.cx + this.R + 4, this.cy + this.R + 4, 0); this.touch(this.cx, -6, 6);
-    } else { sp.x = this.cx; sp.y = this.idleY(); c.strokeStyle = rgba(theme.thread, 0.7); c.beginPath(); c.moveTo(this.cx, -4); c.lineTo(sp.x, sp.y); c.stroke(); this.touch(this.cx, 0, 10); }
-    this.drawSpider(c, now);
-  }
-
   drawPrune(c, now) {
-    const pulse = 0.5 + 0.5 * Math.sin(now / 260), sty = this.styles;
-    c.globalCompositeOperation = sty.comp;
+    const pulse = 0.5 + 0.5 * Math.sin(now / 260);
     for (const s of this.laidList) { // pulsing rings on candidates that are still attached
       if (!s.ghost || s.cut || s.removed) continue;
-      c.drawImage(this.glowRing, s.x - 16, s.y - 16, 32, 32);
-      c.strokeStyle = rgba(theme.ring, 0.5 + 0.5 * pulse); c.lineWidth = 1.5;
+      c.drawImage(this.glowRed, s.x - 16, s.y - 16, 32, 32);
+      c.strokeStyle = `rgba(255,77,94,${0.5 + 0.5 * pulse})`; c.lineWidth = 1.5;
       c.beginPath(); c.arc(s.x, s.y, 6 + pulse * 3, 0, TWO_PI); c.stroke(); this.touch(s.x, s.y, 20);
     }
     for (const f of this.flashes) {
       if (f.t < 0) continue;
       const k = (now - f.t) / 600;
       if (k >= 1) { f.t = -1; continue; }
-      c.strokeStyle = rgba(theme.dark ? '#ffffff' : theme.ring, 1 - k); c.lineWidth = 2;
+      c.strokeStyle = `rgba(255,255,255,${1 - k})`; c.lineWidth = 2;
       c.beginPath(); c.arc(f.x, f.y, 4 + k * 22, 0, TWO_PI); c.stroke(); this.touch(f.x, f.y, 30);
     }
     for (const s of this.stubs) { // the two cut thread ends recoil away from the snip
@@ -513,62 +345,54 @@ export class Viz {
       const k = (now - s.t) / 450;
       if (k >= 1) { s.t = -1; continue; }
       const e = 1 - (1 - k) * (1 - k);
-      c.strokeStyle = rgba(theme.ring, 1 - k); c.lineWidth = 1.4;
+      c.strokeStyle = `rgba(255,120,130,${1 - k})`; c.lineWidth = 1.4;
       c.beginPath();
       c.moveTo(s.jx, s.jy); c.lineTo(s.jx + (s.ax - s.jx) * (1 - e), s.jy + (s.ay - s.jy) * (1 - e)); // the piece still on the hub side
       c.moveTo(s.jx, s.jy); c.lineTo(s.jx + (s.bx - s.jx) * (1 - e), s.jy + (s.by - s.jy) * (1 - e)); // the piece on the branch side
       c.stroke(); this.touch(s.ax, s.ay, 8); this.touch(s.bx, s.by, 8);
     }
-    const k = this.spark; // spark burst from the snip (pooled, at most 60)
-    for (let i = 0; i < MAX_SPARKS; i++) {
-      if (k.life[i] <= 0) continue;
-      const a = Math.max(0, k.life[i] / k.max[i]), r = 3 + 5 * a;
-      c.globalAlpha = a; c.drawImage(this.glowSpark, k.x[i] - r, k.y[i] - r, r * 2, r * 2); this.touch(k.x[i], k.y[i], 10);
-    }
-    c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
     for (const f of this.falling) { // packages that really shed: grey out, fall with gravity, fade
       if (!f.on || f.t < f.delay) continue;
-      const kk = f.t - f.delay;
-      const a = Math.max(0, 1 - kk), grey = Math.min(1, kk / 0.25);
-      c.strokeStyle = rgba(theme.thread, 0.2 * a); c.lineWidth = 1;
+      const k = f.t - f.delay;
+      const a = Math.max(0, 1 - k), grey = Math.min(1, k / 0.25);
+      c.strokeStyle = `rgba(110,140,220,${0.18 * a})`; c.lineWidth = 1;
       c.beginPath(); c.moveTo(f.px, f.py); c.lineTo(f.x, f.y); c.stroke();
-      const col = this.spr[f.lv][f.bucket], gr = this.spr[f.lv][NB + 1];
-      c.globalAlpha = a * (1 - grey); c.drawImage(col.c, f.x - col.half, f.y - col.half, col.size, col.size);
-      c.globalAlpha = a * grey; c.drawImage(gr.c, f.x - gr.half, f.y - gr.half, gr.size, gr.size);
+      c.globalAlpha = a * (1 - grey); c.fillStyle = BUCKET_COLORS[f.bucket]; c.beginPath(); c.arc(f.x, f.y, f.r, 0, TWO_PI); c.fill();
+      c.globalAlpha = a * grey; c.fillStyle = '#7d8aa5'; c.beginPath(); c.arc(f.x, f.y, f.r, 0, TWO_PI); c.fill();
       c.globalAlpha = 1; this.touch(f.x, f.y, 12); this.touch(f.px, f.py, 4);
     }
   }
 
   drawSpider(c, now) {
-    const sp = this.spider, S = this.spiderSize;
-    const x = sp.x;
-    let rot = sp.heading + Math.PI / 2, yy = sp.y;
+    const sp = this.spider;
+    const x = sp.x, y = sp.y;
+    let rot = sp.heading + Math.PI / 2, yy = y;
     if (this.waiting) { rot += Math.sin(now / 420) * 0.22; yy += Math.sin(now / 520) * 2; } // hangs and sways while npm answers
-    c.save(); c.translate(x, yy); c.rotate(rot); c.scale(1.35, 1.35);
-    c.globalCompositeOperation = this.styles.comp;
-    c.drawImage(this.spiderSprite, -S / 2, -S / 2, S, S); // halo + body
-    c.globalCompositeOperation = 'source-over';
-    c.strokeStyle = theme.spider; c.lineWidth = 1.05; c.lineCap = 'round'; c.lineJoin = 'round';
+    c.drawImage(this.glowBlue, x - 22, yy - 22, 44, 44);
+    c.save(); c.translate(x, yy); c.rotate(rot);
+    c.strokeStyle = '#f2f6ff'; c.fillStyle = '#f2f6ff'; c.lineWidth = 1.1; c.lineCap = 'round';
     const wig = sp.moving ? Math.sin(sp.phase) : 0; // legs move only while the spider moves, in step with distance
     c.beginPath();
     for (let side = -1; side <= 1; side += 2) for (let i = 0; i < 4; i++) {
-      const y0 = -2.6 + i * 2.2, spread = (i - 1.5) * 2.4 + (i % 2 ? wig : -wig) * 1.7;
-      c.moveTo(side * 1.8, y0); c.lineTo(side * 6.2, y0 - 4.6 + spread * 0.3); c.lineTo(side * 11.5, y0 - 1 + spread); c.lineTo(side * 13.8, y0 + 3 + spread * 1.1);
+      const y0 = -3 + i * 2.4, spread = (i - 1.5) * 2.2 + (i % 2 ? wig : -wig) * 1.6;
+      c.moveTo(0, y0); c.lineTo(side * 6, y0 - 4 + spread * 0.4); c.lineTo(side * 11, y0 + spread);
     }
     c.stroke();
+    c.beginPath(); c.ellipse(0, 2, 3.2, 4.6, 0, 0, TWO_PI); c.fill();
+    c.beginPath(); c.arc(0, -3.6, 2.2, 0, TWO_PI); c.fill();
     c.restore();
-    this.touch(x, yy, 54); // the halo sprite is ~97 px wide and drawn additively: the cleared rect must cover all of it
+    this.touch(x, yy, 28);
   }
 
   drawLabel(c) {
     const s = this.sprites.get(this.focusName);
     if (!s) return;
-    c.font = '600 11px ui-monospace, "SF Mono", Menlo, monospace';
+    c.font = '600 11px ui-monospace, SFMono-Regular, Menlo, monospace';
     const text = s.stillNeeded ? `${s.name} (needed by ${s.stillNeeded})` : s.name;
     const tw = c.measureText(text).width;
     const x = Math.min(Math.max(s.x + 12, 6), this.w - tw - 6), y = Math.min(Math.max(s.y + 22, 14), this.h - 8);
-    c.fillStyle = rgba(theme.bg0, 0.82); c.fillRect(x - 4, y - 11, tw + 8, 15);
-    c.fillStyle = theme.text; c.fillText(text, x, y);
+    c.fillStyle = 'rgba(10,14,26,0.78)'; c.fillRect(x - 4, y - 11, tw + 8, 15);
+    c.fillStyle = '#e2e8f5'; c.fillText(text, x, y);
     this.touch(x, y, tw + 14);
   }
 
@@ -590,7 +414,7 @@ export class Viz {
     this.pruning = true; this.hooks = hooks;
     this.beforeCount = report.before; this.removedCount = 0;
     hooks.onCount?.(report.before);
-    this.redrawStatic(); // candidates get their ring-coloured threads
+    this.redrawStatic(); // candidates get their red threads
     const removed = new Set();
     for (const g of report.perGhost) {
       const node = this.sprites.get(g.name);
@@ -616,7 +440,7 @@ export class Viz {
     this.redrawStatic();
   }
 
-  // The spider snips the thread at the parent: flash, sparks, and the two cut ends recoil.
+  // The spider snips the thread at the parent: flash, and the two cut ends recoil.
   snip(node) {
     const p = node.parent ? this.sprites.get(node.parent) : this.hub;
     const len = Math.hypot(node.x - p.x, node.y - p.y) || 1;
@@ -628,17 +452,8 @@ export class Viz {
     this.si = (this.si + 1) % this.stubs.length;
     const s = this.stubs[this.si];
     s.jx = jx; s.jy = jy; s.ax = p.x; s.ay = p.y; s.bx = node.x; s.by = node.y; s.t = now;
-    if (!this.reduced && !this.skipping) this.burst(jx, jy, 26);
     node.cut = true;
     this.redrawStatic(); // the thread is gone from the static layer; the recoiling ends live in the live layer
-  }
-
-  burst(x, y, n) { // pooled sparks: at most MAX_SPARKS alive in total, oldest slots are reused
-    const k = this.spark;
-    for (let i = 0; i < n; i++) {
-      const j = k.n = (k.n + 1) % MAX_SPARKS, a = Math.random() * TWO_PI, v = 50 + Math.random() * 140;
-      k.x[j] = x; k.y[j] = y; k.vx[j] = Math.cos(a) * v; k.vy[j] = Math.sin(a) * v - 30; k.max[j] = k.life[j] = 0.45 + Math.random() * 0.4;
-    }
   }
 
   // Remove packages from the web and let them fall; returns how long the fall takes (ms).
@@ -651,7 +466,7 @@ export class Viz {
       if (this.reduced || this.skipping) { this.removedCount++; return; }
       const f = this.falling[i % this.falling.length];
       const p = s.parent ? this.sprites.get(s.parent) : this.hub;
-      f.on = true; f.started = false; f.x = s.x; f.y = s.y; f.vy = 0; f.px = p.x; f.py = p.y; f.bucket = s.missing ? NB : s.bucket; f.lv = s.lv; f.delay = i * step; f.t = 0;
+      f.on = true; f.started = false; f.x = s.x; f.y = s.y; f.vy = 0; f.px = p.x; f.py = p.y; f.bucket = s.missing ? 0 : s.bucket; f.r = radiusOf(s.depth); f.delay = i * step; f.t = 0;
     });
     if (this.reduced || this.skipping) this.hooks?.onCount?.(this.beforeCount - this.removedCount);
     this.redrawStatic();
@@ -664,37 +479,30 @@ export class Viz {
 
   // ---- share image ------------------------------------------------------------------------------------------
 
-  // lines: {repo, headline, sub, items[]}. Returns a PNG Blob (1200x630), drawn in the active theme.
+  // lines: {repo, headline, sub, items[]}. Returns a PNG Blob (1200x630).
   snapshot({ repo, headline, sub, items = [], note }) {
-    const t = theme;
     const c = document.createElement('canvas');
     c.width = 1200; c.height = 630;
     const g = c.getContext('2d');
-    const bg = g.createLinearGradient(0, 0, 0, 630); bg.addColorStop(0, t.bg0); bg.addColorStop(1, t.bg1);
-    g.fillStyle = bg; g.fillRect(0, 0, 640, 630);
-    const gl = g.createRadialGradient(330, 315, 0, 330, 315, 330); gl.addColorStop(0, rgba(t.glow, 0.9)); gl.addColorStop(1, rgba(t.glow, 0));
-    g.fillStyle = gl; g.fillRect(0, 0, 640, 630);
+    g.fillStyle = '#0a0e1a'; g.fillRect(0, 0, 1200, 630);
     const sq = Math.min(this.canvas.width, this.canvas.height); // square crop around the centre of the web
     for (const layer of [this.canvas, this.live]) g.drawImage(layer, (layer.width - sq) / 2, (layer.height - sq) / 2, sq, sq, 20, 20, 590, 590);
-    g.fillStyle = t.panel; g.fillRect(640, 0, 560, 630);
-    g.fillStyle = t.border; g.fillRect(640, 0, 2, 630);
-    const mono = 'ui-monospace, "SF Mono", Menlo, monospace', sans = 'ui-sans-serif, "SF Pro Display", "Inter", system-ui, sans-serif';
-    g.fillStyle = t.muted; g.font = `600 22px ${mono}`; g.fillText('Dependency Spider', 680, 60);
-    g.fillStyle = t.text; g.font = `700 28px ${mono}`; g.fillText(repo, 680, 110);
-    const hg = g.createLinearGradient(680, 150, 1100, 215); hg.addColorStop(0, t.accentOnPanel); hg.addColorStop(1, mix(t.accentOnPanel, t.text, 0.45));
-    g.fillStyle = hg; g.font = `700 76px ${sans}`; g.fillText(headline, 680, 215);
-    g.fillStyle = t.muted; g.font = `24px ${sans}`; g.fillText(sub, 680, 255);
-    g.fillStyle = t.text; g.font = `20px ${mono}`;
+    g.fillStyle = '#101524'; g.fillRect(640, 0, 560, 630);
+    g.fillStyle = '#7d8aa5'; g.font = '600 22px ui-monospace, Menlo, monospace'; g.fillText('Dependency Spider', 680, 60);
+    g.fillStyle = '#e2e8f5'; g.font = '700 28px ui-monospace, Menlo, monospace'; g.fillText(repo, 680, 110);
+    g.fillStyle = '#3ddc97'; g.font = '700 76px system-ui, sans-serif'; g.fillText(headline, 680, 215);
+    g.fillStyle = '#7d8aa5'; g.font = '24px system-ui, sans-serif'; g.fillText(sub, 680, 255);
+    g.fillStyle = '#e2e8f5'; g.font = '20px ui-monospace, Menlo, monospace';
     let y = 320;
-    for (const text of items.slice(0, 5)) {
+    for (const t of items.slice(0, 5)) {
       let line = '';
-      for (const word of text.split(' ')) {
+      for (const word of t.split(' ')) {
         if (g.measureText(`${line} ${word}`).width > 490 && line) { g.fillText(line, 680, y); y += 28; line = `  ${word}`; } else line = line ? `${line} ${word}` : word;
       }
       g.fillText(line, 680, y); y += 36;
     }
     if (items.length > 5) g.fillText(`+ ${items.length - 5} more`, 680, y);
-    g.fillStyle = t.warnText; g.font = `18px ${sans}`; g.fillText(note, 680, 590);
+    g.fillStyle = '#ffb84d'; g.font = '18px system-ui, sans-serif'; g.fillText(note, 680, 590);
     return new Promise((res) => c.toBlob(res, 'image/png'));
   }
 }

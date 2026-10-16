@@ -6,23 +6,13 @@ Paste a GitHub repo and watch a spider find the dead libraries in it, and show h
 
 A static website: no backend, no build step, no API key, no LLM. Everything runs in your browser against three free public sources (GitHub raw files, the GitHub trees API, the npm registry).
 
-![Midnight Silk, result view on postcss/postcss](docs/screenshots/midnight-desktop-result.png)
+![Summary view, postcss/postcss](docs/showcase/4-summary.png)
 
 ![Prune phase](docs/showcase/prune.gif)
 
-Four themes (pick one with the dots next to the title; the default follows your system light/dark setting):
-
-| Midnight Silk | Neon Arachnid |
-|---|---|
-| ![Midnight Silk](docs/screenshots/midnight-desktop-result.png) | ![Neon Arachnid](docs/screenshots/neon-desktop-result.png) |
-| **Dawn Dew** | **Ember Forge** |
-| ![Dawn Dew](docs/screenshots/dawn-desktop-result.png) | ![Ember Forge](docs/screenshots/ember-desktop-result.png) |
-
-| Empty state (Midnight Silk) | Phone, Midnight | Phone, Dawn |
+| Crawl | Prune | Phone |
 |---|---|---|
-| ![empty](docs/screenshots/midnight-desktop-empty.png) | ![phone midnight](docs/screenshots/midnight-phone-result.png) | ![phone dawn](docs/screenshots/dawn-phone-result.png) |
-
-All 16 screenshots (4 themes, desktop and phone, empty and result state) are in [docs/screenshots/](docs/screenshots/). They were taken with headless Chromium from a recorded scan of postcss/postcss on 2026-10-16.
+| ![crawl](docs/showcase/2-crawl.png) | ![prune](docs/showcase/3-prune.png) | ![phone](docs/phone-4-summary.png) |
 
 ## What it is, honestly
 
@@ -78,12 +68,6 @@ PW_DIR=<playwright folder> node scripts/perf.mjs debug --dpr=2 --throttle=4
 | 6 | `choreo.js` | The animation's brain (pure, no DOM): an incremental fixed radial layout and the spider's planner. See "The animation" below. |
 | 7 | `viz.js` | Draws it on two stacked canvases (a static web layer and a small live layer). |
 
-## Themes and depth cues
-
-- **One palette object** (`src/theme.js`) feeds both the CSS variables and the canvas, so a theme cannot drift between page and picture. The share image is drawn in the active theme too. The choice is saved in `localStorage` inside a try/catch; the page works without it.
-- **Depth is 2.5D, drawn in plain canvas 2D plus CSS:** pre-rendered dewdrop sphere sprites cached per colour and depth level, deeper rings smaller, dimmer and fogged toward the background, silk as a faint wide stroke plus a thin core that fades with depth, a spark burst (pooled, at most 60 particles) when the spider snips, a CSS-drifted dust layer, a vignette, and a perspective tilt of at most 4 degrees that follows the pointer (off on touch devices and with `prefers-reduced-motion`). No WebGL, no `backdrop-filter`, no external fonts.
-- **Accessibility was measured, not assumed** (`scripts/contrast.mjs`, enforced by `test/theme.test.mjs`; raw numbers in [results/theme-contrast.txt](results/theme-contrast.txt)): node colours at least 3:1 against the background and its centre glow, body and legend text at least 4.5:1, and under a deuteranopia simulation the node colours stay distinguishable. Three hexes failed the 3:1 rule and were adjusted (`dawn.c2 #0f9d8a` to `#0e9280`, `dawn.cmiss #94a3b8` to `#768293`, `ember.cmiss #7c6a5c` to `#8e7f73`). Two non-colour cues were added in every theme because colour alone was not enough: **orange/red packages get a ring** and **not-on-npm packages are drawn hollow**. The legend says so and its swatches carry the same cues.
-
 ## The animation
 
 The spider builds the web; it is not a canned video. `choreo.js` is a pure module (no DOM, no clock):
@@ -131,12 +115,10 @@ Fragility colour: `min(1, 0.6*min(staleDays/1460,1) + 0.4*(maintainers==1) + 0.3
 **Verified (I ran it, 2026-10-16, on this machine):**
 
 - Buttons, in headless Chromium on postcss/postcss: Copy command puts the exact command on the clipboard (and shows "Copy failed" when the clipboard is denied), PR text fills a box and copies it, Download image produces a valid 1200x630 PNG. A second scan without reload and an invalid URL after a good scan both reset the UI cleanly.
-- 80 offline unit tests pass (`npm test`, also with `fetch` replaced by a function that throws): every trap listed above has a test, including config-key mentions, the dependency-map exclusion, the caveat line, the lower-confidence rule, the animation choreography invariants, and the theme palettes (contrast at least 3:1 for node colours and 4.5:1 for text, colour-blind distinguishability) (built-ins, bare `test`, glob with `/*`, dependency-map trap, `tap` vs `tape`, bin names, shorthands, `.bin` paths, misplaced, phantom, own name, file-cap ranking, URL forms, fake-registry BFS/depth/cap/scoped names/404/cycles, shed math with shared dependencies, still-needed-by, overlapping combined shed).
+- 70 offline unit tests pass (`npm test`, also with `fetch` replaced by a function that throws): every trap listed above has a test, including config-key mentions, the dependency-map exclusion, the caveat line, the lower-confidence rule and the animation choreography invariants (built-ins, bare `test`, glob with `/*`, dependency-map trap, `tap` vs `tape`, bin names, shorthands, `.bin` paths, misplaced, phantom, own name, file-cap ranking, URL forms, fake-registry BFS/depth/cap/scoped names/404/cycles, shed math with shared dependencies, still-needed-by, overlapping combined shed).
 - The GitHub trees API accepts `HEAD` (HTTP 200, `{sha,url,tree,truncated}`, `access-control-allow-origin: *`, 60/hour limit; HTTP 404 for a missing repo).
 - Acceptance on live repos (`scripts/acceptance.mjs`): see the next section.
-- The UI in a real headless Chromium (Playwright): intro, scan, crawl, prune and summary phases. All four themes were checked on a recorded postcss scan (zero console errors, no horizontal overflow at 1280 px and at 390 px; screenshots in `docs/screenshots/`). Live scans (postcss, fastify, mocha, chalk) were run earlier, before the theme work, and were not repeated in every theme. Error messages for a bad URL, missing repo, repo without `package.json` and a monorepo (babel/babel) were produced by the real pipeline.
-
-- Themes (headless Chromium, 2026-10-16): the default follows `prefers-color-scheme`, clicking a theme switches the CSS variables, canvas and legend swatches, the choice survives a reload, and it still switches with `localStorage` blocked. Screenshots of every theme, desktop and phone, empty and result state, were looked at (docs/screenshots). The share image is 1200x630 in all four themes. The pointer tilt peaks below 4 degrees and is off for reduced motion and touch. Performance before and after: `results/animation-perf.md`.
+- The UI in a real headless Chromium (Playwright): intro, scan, crawl, prune and summary phases for postcss and fastify (screenshots regenerated after the animation rework, 2026-10-16), zero console errors, no horizontal overflow at 1280 px and at 390 px (screenshots in `docs/`). Error messages for a bad URL, missing repo, repo without `package.json` and a monorepo (babel/babel) were produced by the real pipeline.
 
 **Not verified:**
 
@@ -196,7 +178,7 @@ The two never reported the same full set on any of the 13 repos. Where this scan
 
 ## Showcase run
 
-`postcss/postcss`, run in the app on 2026-10-16 (headless Chromium, data in `docs/showcase/run.json`): 21 declared dependencies (3 prod, 18 dev), 63 of 63 source files scanned, dependency tree 228 packages. Candidates, both also flagged by depcheck: `@size-limit/preset-small-lib` (sheds 6, shown with the lower-confidence badge) and `multiocular` (sheds 17). Together: 228 to 205 packages (-23, 10.1% smaller). `typescript` is not reported because `@logux/oxc-configs` lists it as a peer dependency.
+`postcss/postcss`, run in the app on 2026-10-16 (headless Chromium, `docs/showcase/`): 21 declared dependencies (3 prod, 18 dev), 63 of 63 source files scanned, dependency tree 228 packages. Candidates, both also flagged by depcheck: `@size-limit/preset-small-lib` (sheds 6, shown with the lower-confidence badge) and `multiocular` (sheds 17). Together: 228 to 205 packages (-23, 10.1% smaller). `typescript` is not reported because `@logux/oxc-configs` lists it as a peer dependency.
 
 **-23 is an upper bound, not a saving you can bank.** 6 of the 23 come from `@size-limit/preset-small-lib`, which the removal test proved is needed (`test:size` fails without it). The other 17 come from `multiocular`, which is unconfirmed. Every shed number in this tool assumes the candidate really can be removed. The numbers move as npm publishes new versions.
 

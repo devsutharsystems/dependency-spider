@@ -24,15 +24,6 @@ test('staleness ON: green is recent + several maintainers, red needs age (one ma
   assert.match(tail, /Age, 1 maintainer, deprecation push toward red/);
 });
 
-test('legend cues match the drawing rule: ring exactly for the orange/red range, hollow for not-on-npm', async () => {
-  const { RING_FROM } = await import('../src/theme.js');
-  for (const on of [false, true]) for (const it of legendParts(on).items) {
-    if (it.f === null) assert.equal(it.cue, 'hollow');
-    else assert.equal(it.cue === 'ring', it.f >= RING_FROM, `${it.text}`);
-    assert.equal(/\((ring|hollow)\)/.test(it.text), !!it.cue, 'the text names the cue it shows');
-  }
-});
-
 test('the two modes say different things', () => {
   assert.notDeepEqual(legendParts(false), legendParts(true));
 });
