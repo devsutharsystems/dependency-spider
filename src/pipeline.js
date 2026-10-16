@@ -57,14 +57,14 @@ export async function runPipeline(input, { fetch: fetchFn = globalThis.fetch, to
   const peerKept = [];
   const ghosts = findings.ghosts.filter((g) => {
     const owner = [...graph.nodes.values()].sort((a, b) => a.depth - b.depth).find((n) => n.peers?.includes(g.name));
-    if (owner) peerKept.push({ ...g, neededBy: owner.name });
+    if (owner) { peerKept.push({ ...g, neededBy: owner.name }); findings.evidence[g.name] = `peer dependency of ${owner.name}`; }
     return !owner;
   });
   const shed = shedReport(graph, manifestNames, ghosts);
   const result = {
     repo, ref: tree.ref, pkg, manifestNames, truncatedTree: tree.truncated,
     counts: { declared: manifestNames.length, prod: prod.length, dev: dev.length, sourceFiles: sourcePaths.length, eligibleSourceFiles, configFiles: configPaths.length, extensionless, fetched: files.length + configTexts.length, failedFiles: failed.length, importedPackages: findings.importedCount },
-    graph, ghosts, peerKept, misplaced: findings.misplaced, phantoms: findings.phantoms, shed, command: uninstallCommand(ghosts),
+    graph, ghosts, peerKept, evidence: findings.evidence, misplaced: findings.misplaced, phantoms: findings.phantoms, shed, command: uninstallCommand(ghosts),
     capped: graph.capped, filesCapped: eligibleSourceFiles > sourcePaths.length, registryErrors: graph.errors,
   };
   if (withModified) {

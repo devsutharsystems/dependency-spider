@@ -1,0 +1,660 @@
+[
+  {
+    "repo": "fastify/fastify",
+    "mine": [
+      "@stylistic/eslint-plugin",
+      "@stylistic/eslint-plugin-js"
+    ],
+    "shed": 1,
+    "before": 464,
+    "after": 463,
+    "filesCapped": false,
+    "declared": 50,
+    "sourceFiles": "282/282",
+    "perGhost": {
+      "@stylistic/eslint-plugin": "needed by neostandard",
+      "@stylistic/eslint-plugin-js": 1
+    },
+    "depcheck": [
+      "@jsumners/line-reporter",
+      "@stylistic/eslint-plugin",
+      "@stylistic/eslint-plugin-js",
+      "autocannon",
+      "borp",
+      "branch-comparer",
+      "concurrently",
+      "cross-env",
+      "markdownlint-cli2",
+      "typescript"
+    ],
+    "both": [
+      "@stylistic/eslint-plugin",
+      "@stylistic/eslint-plugin-js"
+    ],
+    "mineOnly": [],
+    "depcheckOnly": [
+      {
+        "name": "@jsumners/line-reporter",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "autocannon",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "borp",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "branch-comparer",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "concurrently",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "cross-env",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "markdownlint-cli2",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "typescript",
+        "why": "mine: peer dependency of tstyche"
+      }
+    ]
+  },
+  {
+    "repo": "expressjs/express",
+    "mine": [
+      "hbs"
+    ],
+    "shed": 9,
+    "before": 297,
+    "after": 288,
+    "filesCapped": false,
+    "declared": 44,
+    "sourceFiles": "141/141",
+    "perGhost": {
+      "hbs": 9
+    },
+    "depcheck": [
+      "eslint",
+      "hbs",
+      "mocha",
+      "nyc"
+    ],
+    "both": [
+      "hbs"
+    ],
+    "mineOnly": [],
+    "depcheckOnly": [
+      {
+        "name": "eslint",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "mocha",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "nyc",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      }
+    ]
+  },
+  {
+    "repo": "koajs/koa",
+    "mine": [],
+    "shed": 0,
+    "before": 327,
+    "after": 327,
+    "filesCapped": false,
+    "declared": 23,
+    "sourceFiles": "82/82",
+    "perGhost": {},
+    "depcheck": [
+      "c8",
+      "gen-esm-wrapper",
+      "snazzy",
+      "standard"
+    ],
+    "both": [],
+    "mineOnly": [],
+    "depcheckOnly": [
+      {
+        "name": "c8",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "gen-esm-wrapper",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "snazzy",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "standard",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      }
+    ]
+  },
+  {
+    "repo": "hexojs/hexo",
+    "mine": [],
+    "shed": 0,
+    "before": 524,
+    "after": 524,
+    "filesCapped": false,
+    "declared": 47,
+    "sourceFiles": "274/274",
+    "perGhost": {},
+    "depcheck": [
+      "c8",
+      "eslint",
+      "hexo-cli",
+      "husky",
+      "lint-staged",
+      "mocha",
+      "typescript"
+    ],
+    "both": [],
+    "mineOnly": [],
+    "depcheckOnly": [
+      {
+        "name": "c8",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "eslint",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "hexo-cli",
+        "why": "mine: imported in bin/hexo"
+      },
+      {
+        "name": "husky",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "lint-staged",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "mocha",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "typescript",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      }
+    ]
+  },
+  {
+    "repo": "mochajs/mocha",
+    "mine": [
+      "tsx"
+    ],
+    "shed": 2,
+    "before": 585,
+    "after": 583,
+    "filesCapped": true,
+    "declared": 53,
+    "sourceFiles": "300/478",
+    "perGhost": {
+      "tsx": 2
+    },
+    "depcheck": [
+      "@test/esm-only-loader",
+      "coffeescript",
+      "cross-env",
+      "installed-check",
+      "knip",
+      "npm-run-all2",
+      "nyc",
+      "prettier",
+      "tsx",
+      "typescript",
+      "webpack",
+      "webpack-cli"
+    ],
+    "both": [
+      "tsx"
+    ],
+    "mineOnly": [],
+    "depcheckOnly": [
+      {
+        "name": "@test/esm-only-loader",
+        "why": "mine: skipped: local path dependency"
+      },
+      {
+        "name": "coffeescript",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "cross-env",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "installed-check",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "knip",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "npm-run-all2",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "nyc",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "prettier",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "typescript",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "webpack",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "webpack-cli",
+        "why": "mine: companion of another used package"
+      }
+    ]
+  },
+  {
+    "repo": "postcss/postcss",
+    "mine": [
+      "@size-limit/preset-small-lib",
+      "multiocular",
+      "simple-git-hooks"
+    ],
+    "shed": 24,
+    "before": 228,
+    "after": 204,
+    "filesCapped": false,
+    "declared": 21,
+    "sourceFiles": "63/63",
+    "perGhost": {
+      "@size-limit/preset-small-lib": 6,
+      "multiocular": 17,
+      "simple-git-hooks": 1
+    },
+    "depcheck": [
+      "@size-limit/preset-small-lib",
+      "c8",
+      "check-dts",
+      "eslint",
+      "multiocular",
+      "simple-git-hooks",
+      "size-limit",
+      "ts-node",
+      "typescript"
+    ],
+    "both": [
+      "@size-limit/preset-small-lib",
+      "multiocular",
+      "simple-git-hooks"
+    ],
+    "mineOnly": [],
+    "depcheckOnly": [
+      {
+        "name": "c8",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "check-dts",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "eslint",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "size-limit",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "ts-node",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "typescript",
+        "why": "mine: peer dependency of @logux/oxc-configs"
+      }
+    ]
+  },
+  {
+    "repo": "axios/axios",
+    "mine": [
+      "@vitest/browser",
+      "lint-staged"
+    ],
+    "shed": 2,
+    "before": 540,
+    "after": 538,
+    "filesCapped": false,
+    "declared": 42,
+    "sourceFiles": "278/278",
+    "perGhost": {
+      "@vitest/browser": "needed by @vitest/browser-playwright",
+      "lint-staged": 2
+    },
+    "depcheck": [
+      "@babel/core",
+      "@babel/preset-env",
+      "@commitlint/cli",
+      "@commitlint/config-conventional",
+      "@vitest/browser",
+      "cross-env",
+      "eslint",
+      "husky",
+      "playwright",
+      "prettier",
+      "rollup",
+      "typescript"
+    ],
+    "both": [
+      "@vitest/browser"
+    ],
+    "mineOnly": [
+      {
+        "name": "lint-staged",
+        "why": "no occurrence outside package.json/lockfiles/docs (looks like a true ghost)"
+      }
+    ],
+    "depcheckOnly": [
+      {
+        "name": "@babel/core",
+        "why": "mine: peer dependency of @babel/preset-env"
+      },
+      {
+        "name": "@babel/preset-env",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "@commitlint/cli",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "@commitlint/config-conventional",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "cross-env",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "eslint",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "husky",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "playwright",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "prettier",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "rollup",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "typescript",
+        "why": "mine: peer dependency of cosmiconfig-typescript-loader"
+      }
+    ]
+  },
+  {
+    "repo": "chalk/chalk",
+    "mine": [
+      "yoctodelay"
+    ],
+    "shed": 1,
+    "before": 481,
+    "after": 480,
+    "filesCapped": false,
+    "declared": 11,
+    "sourceFiles": "13/13",
+    "perGhost": {
+      "yoctodelay": 1
+    },
+    "depcheck": [
+      "c8",
+      "matcha",
+      "typescript",
+      "xo",
+      "yoctodelay"
+    ],
+    "both": [
+      "yoctodelay"
+    ],
+    "mineOnly": [],
+    "depcheckOnly": [
+      {
+        "name": "c8",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "matcha",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "typescript",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "xo",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      }
+    ]
+  },
+  {
+    "repo": "tj/commander.js",
+    "mine": [],
+    "shed": 0,
+    "before": 181,
+    "after": 181,
+    "filesCapped": false,
+    "declared": 9,
+    "sourceFiles": "170/170",
+    "perGhost": {},
+    "depcheck": [
+      "prettier",
+      "typescript"
+    ],
+    "both": [],
+    "mineOnly": [],
+    "depcheckOnly": [
+      {
+        "name": "prettier",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "typescript",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      }
+    ]
+  },
+  {
+    "repo": "winstonjs/winston",
+    "mine": [
+      "abstract-winston-transport"
+    ],
+    "shed": 3,
+    "before": 518,
+    "after": 515,
+    "filesCapped": false,
+    "declared": 29,
+    "sourceFiles": "82/82",
+    "perGhost": {
+      "abstract-winston-transport": 3
+    },
+    "depcheck": [
+      "@babel/cli",
+      "@babel/core",
+      "abstract-winston-transport",
+      "eslint",
+      "jest"
+    ],
+    "both": [
+      "abstract-winston-transport"
+    ],
+    "mineOnly": [],
+    "depcheckOnly": [
+      {
+        "name": "@babel/cli",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "@babel/core",
+        "why": "mine: peer dependency of @babel/cli"
+      },
+      {
+        "name": "eslint",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "jest",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      }
+    ]
+  },
+  {
+    "repo": "jprichardson/node-fs-extra",
+    "mine": [],
+    "shed": 0,
+    "before": 326,
+    "after": 326,
+    "filesCapped": false,
+    "declared": 11,
+    "sourceFiles": "112/112",
+    "perGhost": {},
+    "depcheck": [
+      "nyc",
+      "standard"
+    ],
+    "both": [],
+    "mineOnly": [],
+    "depcheckOnly": [
+      {
+        "name": "nyc",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "standard",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      }
+    ]
+  },
+  {
+    "repo": "debug-js/debug",
+    "mine": [
+      "karma-browserify",
+      "karma-chrome-launcher",
+      "karma-mocha",
+      "mocha-lcov-reporter"
+    ],
+    "shed": 7,
+    "before": 682,
+    "after": 675,
+    "filesCapped": false,
+    "declared": 12,
+    "sourceFiles": "7/7",
+    "perGhost": {
+      "karma-browserify": 4,
+      "karma-chrome-launcher": 1,
+      "karma-mocha": 1,
+      "mocha-lcov-reporter": 1
+    },
+    "depcheck": [
+      "brfs",
+      "browserify",
+      "coveralls",
+      "karma",
+      "karma-browserify",
+      "karma-chrome-launcher",
+      "karma-mocha",
+      "mocha",
+      "mocha-lcov-reporter",
+      "xo"
+    ],
+    "both": [
+      "karma-browserify",
+      "karma-chrome-launcher",
+      "karma-mocha",
+      "mocha-lcov-reporter"
+    ],
+    "mineOnly": [],
+    "depcheckOnly": [
+      {
+        "name": "brfs",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "browserify",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "coveralls",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "karma",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "mocha",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "xo",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      }
+    ]
+  },
+  {
+    "repo": "expressjs/body-parser",
+    "mine": [],
+    "shed": 0,
+    "before": 274,
+    "after": 274,
+    "filesCapped": false,
+    "declared": 14,
+    "sourceFiles": "14/14",
+    "perGhost": {},
+    "depcheck": [
+      "eslint",
+      "nyc"
+    ],
+    "both": [],
+    "mineOnly": [],
+    "depcheckOnly": [
+      {
+        "name": "eslint",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      },
+      {
+        "name": "nyc",
+        "why": "mine: mentioned in scripts/config (name, bin or shorthand)"
+      }
+    ]
+  }
+]

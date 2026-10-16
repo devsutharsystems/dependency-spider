@@ -75,13 +75,15 @@ export function classify({ pkg, files, configTexts = [], bins = {}, nestedRoots 
   const isUsed = (name) => kindsByPkg.has(name) || isMentioned(name);
   const ghosts = [];
   const misplaced = [];
+  const evidence = {}; // name -> why it is not a ghost (used by scripts/validate.mjs)
   for (const [section, names] of [['dependencies', prod], ['devDependencies', dev]]) {
     for (const name of names) {
-      if (name.startsWith('@types/') || BUILTINS.has(name)) continue; // BUILTINS: ambiguous with node core, skip
-      if (LOCAL_SPEC.test((section === 'dependencies' ? pkg.dependencies : pkg.devDependencies)[name])) continue;
+      if (name.startsWith('@types/') || BUILTINS.has(name)) { evidence[name] = 'skipped: @types or a name that is also a Node built-in'; continue; } // BUILTINS: ambiguous with node core
+      if (LOCAL_SPEC.test((section === 'dependencies' ? pkg.dependencies : pkg.devDependencies)[name])) { evidence[name] = 'skipped: local path dependency'; continue; }
       const kinds = kindsByPkg.get(name);
       const mentioned = isMentioned(name) || (COMPANIONS[name] || []).some(isUsed);
       if (!kinds && !mentioned) { ghosts.push({ name, section }); continue; }
+      evidence[name] = kinds ? `imported in ${filesByPkg.get(name)[0]}` : isMentioned(name) ? 'mentioned in scripts/config (name, bin or shorthand)' : 'companion of another used package';
       if (section === 'dependencies' && !(kinds && kinds.has('src'))) {
         const only = kinds ? [...kinds] : [];
         let reason;
@@ -101,5 +103,5 @@ export function classify({ pkg, files, configTexts = [], bins = {}, nestedRoots 
     if (!real.length) continue;
     phantoms.push({ name, files: real.slice(0, 3) });
   }
-  return { ghosts, misplaced, phantoms, importedCount: kindsByPkg.size };
+  return { ghosts, misplaced, phantoms, evidence, importedCount: kindsByPkg.size };
 }

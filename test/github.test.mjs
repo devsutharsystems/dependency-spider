@@ -80,5 +80,5 @@ test('fetchMany: 404 -> null, never sends headers', async () => {
   assert.equal(texts.get('a.js'), 'ok');
   assert.equal(texts.get('b.js'), null);
   assert.deepEqual(failed, []);
-  assert.ok(inits.every((i) => i === undefined));
+  assert.ok(inits.every((i) => !i?.headers), "raw file requests carry no custom headers");
 });

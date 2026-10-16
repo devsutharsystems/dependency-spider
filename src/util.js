@@ -26,11 +26,13 @@ export async function mapLimit(items, limit, fn) {
 }
 
 // Retries network errors, 429 and 5xx with exponential backoff. Returns the last response otherwise.
-export async function fetchRetry(fetchFn, url, init, { retries = 3, baseDelay = 400, sleepFn = sleep } = {}) {
+export async function fetchRetry(fetchFn, url, init, { retries = 3, baseDelay = 400, sleepFn = sleep, timeoutMs = 30000 } = {}) {
   let lastErr;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const res = await fetchFn(url, init);
+      // a hung connection must not hang the whole scan: give up on it after timeoutMs and retry
+      const signal = typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(timeoutMs) : undefined;
+      const res = await fetchFn(url, signal ? { ...init, signal } : init);
       if ((res.status === 429 || res.status >= 500) && attempt < retries) {
         await sleepFn(baseDelay * 2 ** attempt);
         continue;
