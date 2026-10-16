@@ -1,12 +1,13 @@
-I built Dependency Spider: paste a GitHub repo, and it lists dependencies the code never uses, then shows how many packages leave the tree if you drop them.
+I built Dependency Spider with Claude Code. Paste a GitHub repo and it lists dependencies the code never uses, then shows how many packages leave the tree if you remove them.
 
-My first claim was that fastify's branch-comparer is unused. It isn't. A script runs `branchcmp`, which is that package's CLI name. Matching bin names fixed it, so the tool now says no.
+Three things I learned, from runs on 16 Oct 2026:
 
-What I measured on 16 Oct 2026:
-- postcss: 3 candidates, tree 228 to 204 packages (-24, 10.5%). depcheck flags the same three.
-- Across 13 repos, depcheck without an install flagged 84 packages, mine 15. After installing dependencies on 3 repos, depcheck's flags fell from 23 to 8, so most of the gap was the missing install.
-- On express I removed my one candidate, hbs, and ran the tests: 6 failed. Express loads view engines by name at runtime, so that was a false positive.
+1. I first believed fastify's branch-comparer was unused. A script runs `branchcmp`, its CLI name. Matching bin names fixed that.
 
-Read the output as candidates, not verdicts. It is regex based, follows npm's latest versions, and I have tested one removal.
+2. Removal tests found false positives. On express I removed my one candidate, hbs, and 6 tests failed: express loads view engines by name at runtime. On postcss, removing all three candidates passed the unit tests but broke the size check, because size-limit loads its plugin by name.
+
+3. My first depcheck comparison was unfair. I ran depcheck without installing dependencies. After installing them on 3 repos, its flags fell from 23 to 8, and we overlapped on 6 of my 8. Agreement is not correctness either: both tools flagged hbs.
+
+So the output is candidates, not verdicts.
 
 Code and write-up: https://github.com/I-am-Dev-Suthar/dependency-spider
