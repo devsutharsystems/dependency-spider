@@ -7,6 +7,8 @@ import { prText, ghostLine } from './report.js';
 import { buildCard } from './cards.js';
 import { deserializeResult } from './fixture.js';
 import { legendParts } from './legend.js';
+import { off, isOff } from './flags.js';
+document.documentElement.dataset.off = [...off].join(' '); // CSS hooks for the diagnosis switches
 
 const $ = (id) => document.getElementById(id);
 const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -14,7 +16,12 @@ const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 let savedTheme = null;
 try { savedTheme = localStorage.getItem('spider-theme'); } catch { /* storage can be blocked: the page works without it */ }
 applyTheme(savedTheme || defaultThemeId(window.matchMedia('(prefers-color-scheme: dark)').matches));
-const viz = new Viz($('web'), { reducedMotion: reduced });
+// Quality tier: 2 full, 1 reduced (touch devices start here), 0 lite. The "Lite effects" box forces 0 and is remembered if storage works.
+let lite = false;
+try { lite = localStorage.getItem('spider-lite') === '1'; } catch { /* storage blocked: the page works without it */ }
+const coarse = window.matchMedia('(hover: none), (pointer: coarse)').matches;
+const baseTier = coarse ? 1 : 2;
+const viz = new Viz($('web'), { reducedMotion: reduced, tier: lite ? 0 : baseTier });
 window.__viz = viz; // handy for debugging in the console
 window.__spider = { get result() { return current; } };
 
@@ -80,7 +87,7 @@ if (!savedTheme) { // no saved choice: follow the system scheme if it changes
 
 // count-up for the headline number (skipped for reduced motion)
 function countUp(node, to, ms = 700) {
-  if (reduced || to === 0) { node.textContent = to; return; }
+  if (reduced || to === 0 || isOff('countup')) { node.textContent = to; return; }
   const t0 = performance.now();
   const step = (now) => { const k = Math.min(1, (now - t0) / ms); node.textContent = Math.round(to * (1 - (1 - k) ** 3)); if (k < 1) requestAnimationFrame(step); };
   requestAnimationFrame(step);
@@ -281,6 +288,15 @@ function fillAlso(r) {
   section('Not reported: needed as a peer dependency', (r.peerKept || []).map((k) => `${k.name}: peer of ${k.neededBy}`));
   $('also').hidden = !body.childNodes.length;
 }
+
+$('lite').checked = lite;
+function tierNote(t, auto) { $('tier-note').textContent = t === 2 ? '' : t === 1 ? (auto ? 'Effects reduced automatically to keep it smooth.' : '') : (auto ? 'Effects switched to lite automatically to keep it smooth.' : 'Lite effects are on.'); }
+viz.onTier = tierNote; tierNote(viz.tier, false);
+$('lite').addEventListener('change', () => {
+  try { localStorage.setItem('spider-lite', $('lite').checked ? '1' : '0'); } catch { /* ignore: storage blocked */ }
+  viz.setTier($('lite').checked ? 0 : baseTier); // the user's choice; the only way back up is this box
+  tierNote(viz.tier, false);
+});
 
 $('skip').addEventListener('click', () => { viz.skip(); });
 $('replay').addEventListener('click', () => { if (current) playResult(current, 0); });

@@ -11,11 +11,8 @@ code, pre, input, .log, .cards { font-family: var(--mono); }
 .app { display: grid; grid-template-columns: 1fr 380px; min-height: 100vh; }
 .stage { display: flex; flex-direction: column; min-width: 0; background: var(--bg1); }
 .canvas-wrap { flex: 1; position: relative; min-height: 420px; overflow: hidden; background: radial-gradient(70% 70% at var(--glow-pos, 50% 48%), var(--glow) 0%, transparent 72%), linear-gradient(180deg, var(--bg0), var(--bg1)); }
-.canvas-wrap::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(120% 100% at 50% 50%, transparent 55%, var(--vignette) 100%); }
 #web { position: absolute; inset: 0; display: block; }
-.tilt { position: absolute; inset: 0; will-change: transform; }
-.dust { position: absolute; left: -6%; top: -6%; width: 112%; height: 112%; pointer-events: none; animation: drift 140s ease-in-out infinite alternate; }
-@keyframes drift { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(-2.5%, -2%, 0); } }
+.tilt { position: absolute; inset: 0; } /* no permanent will-change: the layer only exists while the tilt is not flat */
 .hint { position: absolute; left: 0; right: 0; bottom: 14%; text-align: center; color: var(--muted); font-size: 13px; letter-spacing: .01em; pointer-events: none; transition: opacity .4s; z-index: 1; }
 .hint.hidden { opacity: 0; }
 .legend { margin: 0; padding: var(--s2) var(--s5) 0; font-size: 11px; line-height: 1.5; color: var(--muted); }
@@ -111,4 +108,8 @@ footer { margin-top: var(--s5); font-size: 11px; }
   .legend { padding: var(--s2) var(--s4) 0; }
   .stage-note { padding-left: var(--s4); padding-right: var(--s4); }
 }
-@media (prefers-reduced-motion: reduce) { #bar-fill, .hint, .theme-btn, button, .card { transition: none; } .dust { animation: none; } }
+@media (prefers-reduced-motion: reduce) { #bar-fill, .hint, .theme-btn, button, .card { transition: none; } }
+
+/* diagnosis switches (src/flags.js) */
+.tier-note { font-size: 11px; min-height: 0; margin: 0 0 var(--s2); }
+.tier-note:empty { display: none; }
