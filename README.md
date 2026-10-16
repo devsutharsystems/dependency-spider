@@ -75,6 +75,7 @@ Fragility colour: `min(1, 0.6*min(staleDays/1460,1) + 0.4*(maintainers==1) + 0.3
 - **`modified` is a proxy** for the last publish, and colours are a heuristic.
 - **File cap.** At most 300 source files are read (tests last). Big repos (mocha: 478 eligible files) can have usage in unread tests; the UI shows a warning when this happens.
 - **Nested configs are not read.** Only root configs, `tsconfig*.json` anywhere, `.husky/*` and a few scripts. Usage that lives only in a nested fixture config (mocha's `tsx`) is missed.
+- **Names resolved at runtime from strings** are invisible: view engines (express's `hbs`, confirmed by the removal test), Karma plugins, loaders. They show up as false candidates.
 - **Package cap of 900** and depth 6; the UI warns when reached.
 - **JS/TS only, root `package.json` only.** `workspaces` stops with a monorepo message.
 - **GitHub API limit:** 60 requests/hour unauthenticated.
