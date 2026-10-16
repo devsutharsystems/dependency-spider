@@ -4,6 +4,7 @@ import { classify, LOCAL_SPEC } from './analyze.js';
 import { crawl, addModified, createCache } from './registry.js';
 import { shedReport, uninstallCommand } from './graph.js';
 import { SpiderError } from './util.js';
+import { scanState } from './scanstate.js';
 
 const SOURCE_EXT = /\.(js|jsx|ts|tsx|mjs|cjs|mts|cts)$/;
 
@@ -27,7 +28,7 @@ export async function runPipeline(input, { fetch: fetchFn = globalThis.fetch, to
   const eligibleSourceFiles = pickSourceFiles(tree.paths, Infinity).length;
   const configPaths = pickConfigFiles(tree.paths).filter((p) => !sourcePaths.includes(p));
   const wanted = [...sourcePaths, ...configPaths];
-  const { texts, failed } = await fetchMany(wanted, { ...repo, ref: tree.ref, fetch: fetchFn, onProgress: (done, total) => onEvent({ type: 'files', done, total }) });
+  const { texts, failed, aborted } = await fetchMany(wanted, { ...repo, ref: tree.ref, fetch: fetchFn, onProgress: (done, total) => onEvent({ type: 'files', done, total }) });
 
   const files = [];
   const configTexts = [];
@@ -43,6 +44,8 @@ export async function runPipeline(input, { fetch: fetchFn = globalThis.fetch, to
     else configTexts.push(t);
   }
   const nestedRoots = tree.paths.filter((p) => /\/package\.json$/.test(p) && !p.includes('node_modules/')).map((p) => p.slice(0, -'package.json'.length));
+  const sourceRead = sourcePaths.filter((p) => texts.get(p) != null).length; // N: source files actually read
+  const scan = scanState(sourceRead, eligibleSourceFiles); // M = eligibleSourceFiles; both come from this scan
   const prelim = classify({ pkg, files, configTexts });
   onEvent({ type: 'imports', count: prelim.importedCount });
 
@@ -63,9 +66,9 @@ export async function runPipeline(input, { fetch: fetchFn = globalThis.fetch, to
   const shed = shedReport(graph, manifestNames, ghosts);
   const result = {
     repo, ref: tree.ref, pkg, manifestNames, truncatedTree: tree.truncated,
-    counts: { declared: manifestNames.length, prod: prod.length, dev: dev.length, sourceFiles: sourcePaths.length, eligibleSourceFiles, configFiles: configPaths.length, extensionless, fetched: files.length + configTexts.length, failedFiles: failed.length, importedPackages: findings.importedCount },
+    counts: { declared: manifestNames.length, prod: prod.length, dev: dev.length, sourceFiles: sourcePaths.length, sourceFilesRead: sourceRead, eligibleSourceFiles, configFiles: configPaths.length, extensionless, fetched: files.length + configTexts.length, failedFiles: failed.length, importedPackages: findings.importedCount },
     graph, ghosts, peerKept, evidence: findings.evidence, misplaced: findings.misplaced, phantoms: findings.phantoms, shed, command: uninstallCommand(ghosts),
-    capped: graph.capped, filesCapped: eligibleSourceFiles > sourcePaths.length, registryErrors: graph.errors,
+    capped: graph.capped, filesCapped: eligibleSourceFiles > sourcePaths.length, scan, fetchAborted: aborted, registryErrors: graph.errors,
   };
   if (withModified) {
     const p = addModified(graph, { fetch: fetchFn, onNode: (n) => onEvent({ type: 'modified', node: n }) });

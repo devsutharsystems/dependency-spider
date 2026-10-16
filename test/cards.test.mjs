@@ -22,3 +22,14 @@ test('a card with a likely parent shows the lower-confidence badge between name 
   assert.equal(card.children[1].className, 'badge');
   assert.equal(badgeText('x-y'), 'Lower confidence: likely loaded by x-y by name');
 });
+
+test('a candidate from a weak scan gets the "partial scan: unverified" badge; a normal scan does not', async () => {
+  const { PARTIAL_BADGE } = await import('../src/cards.js');
+  const weak = buildCard(el, 'some-package', undefined, true).card.children.map((c) => c.textContent);
+  assert.deepEqual(weak, ['some-package', 'partial scan: unverified', 'queued', CAVEAT]);
+  assert.equal(PARTIAL_BADGE, 'partial scan: unverified');
+  const normal = buildCard(el, 'some-package').card.children.map((c) => c.textContent);
+  assert.ok(!normal.includes('partial scan: unverified'));
+  const both = buildCard(el, 'p', 'parent', true).card.children.map((c) => c.textContent);
+  assert.deepEqual(both.slice(1, 3), ['Lower confidence: likely loaded by parent by name', 'partial scan: unverified']);
+});

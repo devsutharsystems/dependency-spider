@@ -10,7 +10,7 @@ export function serializeResult(r) {
     manifestNames: r.manifestNames,
     nodes: [...r.graph.nodes.values()].map((n) => ({ name: n.name, depth: n.depth, parent: n.parent, deps: n.deps, peers: n.peers || [], missing: !!n.missing, bins: n.bins, maintainers: n.maintainers, deprecated: n.deprecated, modified: n.modified })),
     ghosts: r.ghosts, peerKept: r.peerKept, misplaced: r.misplaced, phantoms: r.phantoms, evidence: r.evidence,
-    capped: r.capped, filesCapped: r.filesCapped, truncatedTree: r.truncatedTree, registryErrors: r.registryErrors,
+    capped: r.capped, filesCapped: r.filesCapped, scan: r.scan, fetchAborted: r.fetchAborted, truncatedTree: r.truncatedTree, registryErrors: r.registryErrors,
     shed: { before: s.before, after: s.after, combinedShed: s.combinedShed, percent: s.percent, combinedSet: [...s.combinedSet],
       perGhost: s.perGhost.map((g) => ({ ...g, shedSet: [...g.shedSet] })) },
   };

@@ -1,4 +1,5 @@
 // Turns a pipeline result into text: a plain report and the PR description.
+import { scanBanner, abortedBanner } from './scanstate.js';
 
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
@@ -18,13 +19,14 @@ export function plainReport(r) {
   const lines = [
     `${r.repo.owner}/${r.repo.repo}  (ref ${r.ref})`,
     `declared: ${r.counts.declared} (${r.counts.prod} prod, ${r.counts.dev} dev) | files fetched: ${r.counts.fetched} (${r.counts.sourceFiles} source, ${r.counts.configFiles} config) | packages imported: ${r.counts.importedPackages}`,
-    ...(r.filesCapped ? [`WARNING: file cap reached, scanned ${r.counts.sourceFiles} of ${r.counts.eligibleSourceFiles} source files (tests last). Candidates may include false ghosts.`] : []),
+    ...(scanBanner(r.scan) ? [`${scanBanner(r.scan).level === 'strong' ? 'WARNING: ' : 'NOTE: '}${scanBanner(r.scan).text}`] : []),
+    ...(r.fetchAborted ? [`WARNING: ${abortedBanner(r.scan?.read ?? 0).text}`] : []),
     `dependency tree: ${s.before} packages${r.capped ? ' (cap reached, tree is partial)' : ''}`,
     '',
     `Unused candidates (verify before removing): ${r.ghosts.length}`,
     ...s.perGhost.map((g) => `  - ${ghostLine(g)}`),
     '',
-    r.ghosts.length ? `Removing all candidates: -${s.combinedShed} packages, ${s.before} -> ${s.after} (${s.percent}% smaller)` : 'No unused candidates found.',
+    r.ghosts.length ? `Removing all candidates: ${r.scan?.state === 'weak' ? 'up to ' : ''}-${s.combinedShed} packages${r.scan?.state === 'weak' ? ' if all candidates are truly unused' : ''}, ${s.before} -> ${s.after} (${s.percent}% smaller)` : 'No unused candidates found.',
     r.command,
   ];
   if (r.peerKept?.length) lines.push('', 'Not reported (needed as a peer dependency):', ...r.peerKept.map((k) => `  - ${k.name}: peer of ${k.neededBy}`));
@@ -42,7 +44,8 @@ export function prText(r) {
     '',
     ...s.perGhost.map((g) => `- \`${g.name}\` (${g.section}): ${g.stillNeededBy ? `still needed by \`${g.stillNeededBy}\`, so removing it will not shrink the tree` : `removing it sheds ${plural(g.shed, 'package')} from the tree`}`),
     '',
-    `Removing all of them together: **-${s.combinedShed} packages** (${s.before} -> ${s.after}, ${s.percent}% smaller), measured by following the \`latest\` version of each package on npm.`,
+    `Removing all of them together: **${r.scan?.state === 'weak' ? 'up to ' : ''}-${s.combinedShed} packages**${r.scan?.state === 'weak' ? ' if all candidates are truly unused' : ''} (${s.before} -> ${s.after}, ${s.percent}% smaller), measured by following the \`latest\` version of each package on npm.`,
+    ...(scanBanner(r.scan) ? ['', `**Scan coverage:** ${scanBanner(r.scan).text}`] : []),
     '',
     '```sh',
     r.command,

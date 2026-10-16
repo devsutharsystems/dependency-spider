@@ -7,6 +7,8 @@ import { prText, ghostLine } from './report.js';
 import { buildCard } from './cards.js';
 import { deserializeResult } from './fixture.js';
 import { legendParts } from './legend.js';
+import { scanState, scanBanner, abortedBanner, shedHeadline } from './scanstate.js';
+const SHALLOW_CAP = 300, DEEP_CAP = 1500; // files read by default / with "Deep scan"
 import { off, isOff } from './flags.js';
 document.documentElement.dataset.off = [...off].join(' '); // CSS hooks for the diagnosis switches
 
@@ -124,7 +126,7 @@ function resetUi() {
   viz.resize();
 }
 
-function warn(text) { $('warnings').append(el('div', 'warn', text)); }
+function warn(text, level = 'warn') { $('warnings').append(el('div', level === 'info' ? 'info' : level === 'strong' ? 'warn strong' : 'warn', text)); }
 
 // DOM numbers are written at most 10 times a second, from what the spider has actually built (not per package).
 const hud = { mode: 'idle', count: 0 };
@@ -141,6 +143,9 @@ function renderHud() {
     $('bar-fill').style.width = `${st.delivered ? (st.laid / st.delivered) * 100 : 0}%`;
     $('status').textContent = st.waiting ? 'the spider is waiting for npm to answer…' : (st.recent.at(-1) ? `anchoring ${st.recent.at(-1).name}` : 'the spider is lowering itself…');
     $('log').replaceChildren(...st.recent.slice().reverse().map((r) => { const li = el('li'); const d = el('span', 'dot'); d.style.background = r.color; li.append(d, el('span', null, r.name)); return li; }));
+  } else if (hud.mode === 'files' && hud.files) {
+    const f = hud.files;
+    if ($('count').textContent !== String(f.done)) { $('count').textContent = f.done; $('count-label').textContent = `of ${f.total} files read`; $('bar-fill').style.width = `${(f.done / f.total) * 100}%`; }
   } else if (hud.mode === 'prune') {
     if ($('count').textContent !== String(hud.count)) $('count').textContent = hud.count;
   }
@@ -156,7 +161,7 @@ function makeEventHandler() {
       $('status').textContent = `package.json read: ${names.length} declared dependencies`;
       viz.begin(names); // the spider lowers itself from the top while the files are fetched
     }
-    if (e.type === 'files') { $('count').textContent = e.done; $('count-label').textContent = `of ${e.total} files fetched`; $('bar-fill').style.width = `${(e.done / e.total) * 100}%`; }
+    if (e.type === 'files') { hud.mode = 'files'; hud.files = e; } // written at most 10 times a second
     if (e.type === 'imports') $('status').textContent = `${e.count} distinct packages imported in the code`;
     if (e.type === 'phase' && e.phase === 'crawl') { hud.mode = 'build'; hudLast = ''; $('count').textContent = '0'; $('count-label').textContent = 'packages'; $('bar-fill').style.width = '0%'; }
     if (e.type === 'node') viz.addNode(e.node, fragility(e.node)); // handed to the spider; it gets there in its own time
@@ -177,6 +182,7 @@ async function start() {
     const result = await runPipeline($('url').value, {
       token: $('token').value.trim() || undefined,
       withModified,
+      maxFiles: $('deep').checked ? DEEP_CAP : SHALLOW_CAP,
       onEvent: makeEventHandler(),
     });
     current = result;
@@ -232,7 +238,11 @@ async function showResult(r) {
   $('count').textContent = s.before;
   $('bar-fill').style.width = '100%';
   if (r.capped) warn(`Package cap reached: the tree was cut at ${r.graph.nodes.size} packages, so shed numbers are approximate.`);
-  if (r.filesCapped) warn(`File cap reached: scanned ${r.counts.sourceFiles} of ${r.counts.eligibleSourceFiles} source files (tests last). Candidates may include false ghosts, verify each one.`);
+  // How complete was the scan? N, M and P come from the real scan (scanstate.js). Complete: no banner.
+  const scan = r.scan || scanState(r.counts.sourceFilesRead ?? r.counts.sourceFiles, r.counts.eligibleSourceFiles);
+  const sb = scanBanner(scan);
+  if (sb) warn(sb.text, sb.level);
+  if (r.fetchAborted) { const ab = abortedBanner(scan.read); warn(ab.text, ab.level); }
   if (r.truncatedTree) warn('GitHub truncated the file list for this huge repo, so some files were not scanned.');
   if (r.registryErrors) warn(`${r.registryErrors} packages could not be read from the npm registry and are shown without their dependencies.`);
   if (r.counts.failedFiles) warn(`${r.counts.failedFiles} files could not be fetched and were skipped.`);
@@ -254,7 +264,7 @@ async function showResult(r) {
   const cards = new Map();
   $('cards').append(el('h2', null, 'Unused candidates'), el('div', 'muted', 'never imported, not in scripts or config'));
   for (const g of s.perGhost) {
-    const { card, state } = buildCard(el, g.name, g.likelyLoadedBy);
+    const { card, state } = buildCard(el, g.name, g.likelyLoadedBy, scan.state === 'weak');
     cards.set(g.name, { card, state });
     $('cards').append(card);
   }
@@ -274,8 +284,10 @@ async function showResult(r) {
   $('count-label').textContent = 'packages in your tree';
   $('skip').hidden = true; $('replay').hidden = false;
   $('summary').hidden = false;
+  const hl = shedHeadline(s.combinedShed, scan.state);
   const num = el('span', 'num', '0');
-  $('sum-big').replaceChildren(document.createTextNode('-'), num, document.createTextNode(` ${s.combinedShed === 1 ? 'package' : 'packages'}`));
+  $('sum-big').classList.toggle('weak', scan.state === 'weak');
+  $('sum-big').replaceChildren(document.createTextNode(hl.prefix), num, document.createTextNode(hl.suffix));
   countUp(num, s.combinedShed);
   $('sum-sub').textContent = `${s.before} to ${s.after} (${s.percent}% smaller)`;
   $('command').textContent = r.command;
@@ -298,6 +310,7 @@ function fillAlso(r) {
 }
 
 // The selector and a plain-text readout of the tier that is actually running.
+$('deep-cap').textContent = DEEP_CAP.toLocaleString('en');
 $('effects').value = effectsMode;
 function tierNote(t, auto = false) {
   $('tier-note').textContent = urlTier !== null ? `tier ${t} (set in the URL)` : effectsMode === 'auto' ? `Auto: tier ${t}${auto ? ' (reduced to keep it smooth)' : ''}` : effectsMode === 'full' ? 'Full: tier 2' : 'Lite: tier 0';
@@ -333,8 +346,8 @@ $('dl-img').addEventListener('click', async () => {
   const s = current.shed;
   const blob = await viz.snapshot({
     repo: `${current.repo.owner}/${current.repo.repo}`,
-    headline: s.combinedShed ? `-${s.combinedShed} packages` : 'No candidates',
-    sub: `${s.before} to ${s.after} (${s.percent}% smaller)`,
+    headline: !s.combinedShed ? 'No candidates' : current.scan?.state === 'weak' ? `up to -${s.combinedShed}` : `-${s.combinedShed} packages`,
+    sub: current.scan?.state === 'weak' ? `packages if all are truly unused (${current.scan.read} of ${current.scan.eligible} files read)` : `${s.before} to ${s.after} (${s.percent}% smaller)`,
     items: s.perGhost.map((g) => ghostLine(g)),
     note: 'Candidates only. Verify before removing.',
   });

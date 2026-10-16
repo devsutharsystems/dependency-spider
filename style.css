@@ -111,6 +111,10 @@ footer { margin-top: var(--s5); font-size: 11px; }
 @media (prefers-reduced-motion: reduce) { #bar-fill, .hint, .theme-btn, button, .card { transition: none; } }
 
 /* diagnosis switches (src/flags.js) */
+.info { margin: 10px 0 0; padding: var(--s2) 10px; font-size: 12px; border: 1px solid var(--border-hi); border-radius: var(--r-sm); color: var(--text); background: var(--card); }
+.warn.strong { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 12%, var(--panel)); }
+.card .badge.unverified { color: var(--bad); font-weight: 600; }
+.big.weak { font-size: 18px; line-height: 1.3; letter-spacing: -.01em; }
 .effects { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s2); margin: var(--s2) 0; font-size: 12px; }
 .effects select { background: var(--bg0); color: var(--text); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 4px 8px; font: inherit; font-size: 12px; cursor: pointer; }
 .effects select:hover { border-color: var(--border-hi); }
