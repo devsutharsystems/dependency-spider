@@ -20,21 +20,21 @@ You paste a GitHub repo. The app reads `package.json` and up to 300 source files
 
 **`graph.js`.** The math. `reachable` finds everything reachable from the manifest; `shedReport` computes, per candidate and for all together, how many packages disappear; `uninstallCommand` builds the `npm uninstall` lines.
 
-**`layout.js`.** A pure function that places each package on a ring by depth and gives each subtree an angular sector proportional to its size.
+**`choreo.js`.** The animation's brain, pure (no DOM, no clock). Input: the packages in the order the registry crawl delivers them, plus the canvas geometry. `WebLayout` gives each package a fixed slot inside its parent's wedge the moment it arrives, and never moves it. `Planner` decides where the spider goes next using only delivered packages and only existing threads: lay a thread to a waiting child, else walk back along threads to the nearest anchored package with work, spokes (declared dependencies) first; with nothing ready it returns nothing and the spider waits. Output: steps (`drop`, `lay`, `return`) with paths, speeds and rests; `planWeb` builds a whole timeline for tests. It exists so the part that decides what the spider does can be unit-tested without a canvas.
 
-**`viz.js`.** The canvas: rings, nodes easing into position, the spider sprite, the prune animation, the share image. Glow comes from pre-rendered sprites (no per-node `shadowBlur`), it handles `devicePixelRatio`, and it respects reduced motion.
+**`viz.js`.** Draws what `choreo.js` decides, on two stacked canvases: a static layer (rings, anchored threads and packages) that is only drawn into when the spider anchors something or packages are removed, and a small live layer (spider, thread being laid, glints, snip flashes, falling packages) cleared with a dirty rectangle. Threads are batched in `Path2D` strokes and packages in 16 colour buckets; no `shadowBlur` or filters; DPR clamped to 2; time-based with a clamped delta; fixed effect pools; idle in a hidden tab. It also runs the prune choreography and builds the share image from both layers.
 
 **`pipeline.js`.** Orchestration shared by the browser and the Node scripts: URL, file list, `package.json`, files, imports, crawl, classification, peer-dependency check, shed numbers. It emits progress events the UI listens to.
 
 **`report.js`, `cards.js`.** Text output (plain report, PR description) and the candidate card, including the "cannot see packages loaded by name at runtime" caveat under every candidate and the lower-confidence badge.
 
-**`app.js`.** The browser wiring: form, progress panel, cards, buttons (copy, PR text, download image), error messages and resetting state between scans.
+**`app.js`.** The browser wiring: form, progress panel (written at most 10 times a second from what the spider has built), cards, buttons (copy, PR text, download image, Skip animation, Replay animation), error messages and resetting state between scans. It also plays a recorded scan (`?fixture=`), the same path Replay uses.
 
-**`scripts/`.** `acceptance.mjs` (checks known repos), `validate.mjs` (compares with depcheck on 13 repos), `depcheck-installed.mjs` (repeats the comparison after installing dependencies).
+**`scripts/`.** `acceptance.mjs` (checks known repos), `validate.mjs` (compares with depcheck on 13 repos), `depcheck-installed.mjs` (repeats the comparison after installing dependencies), `record-fixture.mjs` and `perf.mjs` (record a scan, then measure animation frame times on it without the network). `src/fixture.js` turns a result into JSON and back.
 
 ## The five design decisions that matter
 
-1. **Fixed radial layout, not a force simulation.** My earlier attempt with a force-directed layout exploded at 400+ nodes. A fixed layout (ring = depth, sector size = subtree size) is deterministic, costs one pass, and never jitters. Nodes ease from their parent to their slot, so it still looks alive.
+1. **Fixed radial layout, placed incrementally, not a force simulation.** My earlier attempt with a force-directed layout exploded at 400+ nodes. The layout is fixed: ring = depth, and each package gets a slot inside its parent's wedge (an equal share per child) the moment the crawl delivers it, and keeps it. Incremental is the point: the spider has to start building while npm is still answering, and my first version, which sized sectors by subtree size, needs the finished tree, so I removed it. The cost is real: equal shares ignore how big a branch will be, so heavy branches get crowded wedges (the long columns in fastify's web). A small radial stagger helps; it does not solve it.
 
 2. **The dependency maps are excluded from the mention search.** "Mentioned in scripts or config counts as used" is only meaningful if the search text excludes `dependencies`, `devDependencies` and similar. If you search them, every dependency mentions itself and you find zero ghosts with no error. There is a unit test for exactly this trap.
 
@@ -45,6 +45,27 @@ You paste a GitHub repo. The app reads `package.json` and up to 300 source files
 5. **Shed = reachable before minus reachable after.** The number of packages a removal saves is not "the package and its dependencies": shared dependencies stay. So I compute everything reachable from the manifest, remove that one entry, recompute, and subtract. If another package still depends on the candidate, the shed is 0 and the UI names that package ("still needed by neostandard"). The total for all candidates is computed together, so overlaps are not double-counted.
 
 A sixth, smaller one: over-counting usage is the safe direction. Block comments are not stripped (globs like `lib/*.js` would swallow real imports), because a missed import creates a false ghost while an extra import only hides one.
+
+## How the animation works
+
+Say it aloud:
+
+1. The animation is driven by the real crawl: a small planner decides where the spider goes, it is not a canned video.
+2. When `package.json` is read, the spider drops from the top on a silk line and anchors the hub, which is the repo itself.
+3. As the npm crawl delivers packages, each one gets a fixed slot on its ring, inside its parent's wedge, and never moves.
+4. The spider only walks to packages that have been delivered, and the thread behind it is exactly the path it walked, so the thread tip is the spider.
+5. It lays the spokes first (your declared dependencies), then fills each wedge; to get to the next job it walks back along threads that already exist, faster.
+6. If the crawl has not delivered anything yet, it hangs and sways, and the panel says it is waiting for npm.
+7. The first fifteen packages go at natural speed so you can see what it does; after that it speeds up, so about 460 packages take around 23 seconds.
+8. In the prune phase it walks back to the hub, snips a candidate's thread with a flash, and only the packages in the shed report grey out, fall and fade, while the counter ticks down; a package that is still needed stays.
+9. Drawing uses two canvases: a static one that is drawn into only when something is added or removed, and a small live one for the few things that move.
+10. Skip jumps to the finished web, Replay re-runs from cached results, and reduced-motion users get the end state. I measured it in headless Chromium on one machine (`results/animation-perf.md`): a retina screen with a slowed CPU went from about 83 ms to 16.7 ms per frame at the 95th percentile, with rare hitches up to 150 ms left.
+
+**Why two canvas layers?** Almost all of the web is static, and repainting about 2,000 threads and 900 dots every frame was the cause of the lag: the profile of the old code at DPR 2 showed 74% of the time in native rasterization and only about 0.3 s in all my drawing code. Now the static layer is drawn into once per anchored package, and the live layer is cleared with a small dirty rectangle. The cost: removing packages in the prune redraws the static layer once per cut, which causes rare single-frame hitches.
+
+**Why time-based animation?** Movement per frame is speed times the elapsed time, so the duration is the same at 60 Hz, 120 Hz or after a slow frame. The elapsed time is clamped (50 ms) so a stalled or backgrounded tab does not make the spider teleport, and the legs advance by distance travelled, not by time, so they do not strobe at high speed.
+
+**Why does the spider accelerate?** Two requirements pull in opposite directions: the viewer has to see what the spider does, which needs natural speed, and a 460-package web at natural speed would take minutes. So the first 15 packages are at natural speed, then the speed multiplier grows with each package up to 14x, which fits the whole build in about 25 to 30 seconds. The honest cost is that the late phase reads as a streak, not as walking.
 
 ## The three results to be ready to explain
 
@@ -70,7 +91,7 @@ A sixth, smaller one: over-counting usage is the safe direction. Block comments 
 
 **7. Is the tree real?** It is a model. It follows the `latest` version of each package, ignores semver ranges and ignores peer and optional dependencies, so it is not your lockfile. Depth is capped at 6 and 900 packages.
 
-**8. Why not use a force-directed graph?** It exploded with 400+ nodes in an earlier attempt. A fixed radial layout is deterministic and cheap.
+**8. Why not use a force-directed graph, and why not size sectors by subtree size?** A force layout exploded with 400+ nodes in an earlier attempt, and it never settles, so the spider could not walk to a stable place. Sizing sectors by subtree size is tidier but needs the finished tree, which the spider cannot have while npm is still answering. So the layout is fixed and incremental. The trade-off is crowded wedges on heavy branches.
 
 **9. What happens with a huge repo or rate limits?** Up to 300 source files are read, tests last, and the UI warns when the cap is hit. GitHub's unauthenticated API allows 60 requests per hour; a scan uses 1 or 2, there is an optional token field, and a readable rate-limit message with the reset time. The rate-limit path is unit-tested with fake responses; I have not triggered it in a browser.
 
@@ -78,4 +99,4 @@ A sixth, smaller one: over-counting usage is the safe direction. Block comments 
 
 ## Things I have not verified
 
-Firefox, Safari and a real phone; the GitHub Pages workflow and the hosted site; the 900-package cap against the real registry; Node 20; and accuracy in any statistical sense.
+Firefox, Safari and a real phone; the animation's frame times on any machine but this one (and any real GPU); the GitHub Pages workflow and the hosted site; the 900-package cap against the real registry; Node 20; and accuracy in any statistical sense.

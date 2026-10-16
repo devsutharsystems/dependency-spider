@@ -66,7 +66,7 @@ Screenshots every 0.5 s of the build and the prune were captured on the postcss 
 
 ## Honest list of what still looks off or is unverified
 
-- **Crowded wedges.** The layout has to place a package the moment it arrives, before the tree's final shape is known, so each package gets an equal share of its parent's wedge. Heavy branches (the long columns at the bottom and left of the fastify web) are denser than the old subtree-size layout made them. A small radial stagger helps but does not fix it. `layout.js` (sectors by subtree size) is no longer used by the app.
+- **Crowded wedges.** The layout has to place a package the moment it arrives, before the tree's final shape is known, so each package gets an equal share of its parent's wedge. Heavy branches (the long columns at the bottom and left of the fastify web) are denser than the old subtree-size layout made them. A small radial stagger helps but does not fix it. The earlier layout by subtree size (`layout.js`) needed the finished tree, so it was deleted along with its test.
 - **Very fast late phase.** After the first 15 packages the spider accelerates up to 14x so 500 packages fit in about 25 s; at the top speed it covers several hundred pixels a second per frame and reads as a streak, not as walking. That is the requested trade-off, but it is not "natural speed".
 - **Cross threads** (dependencies shared between packages) are drawn once, faintly, after the build finishes, not laid by the spider. They are the only things that appear without the spider having visited them.
 - **Pop-in of the static redraws** and the 83 to 150 ms hitches listed above.

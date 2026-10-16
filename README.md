@@ -48,6 +48,14 @@ node scripts/acceptance.mjs [fastify|hexo|mocha|all]
 node scripts/validate.mjs [owner/repo ...]      # writes results/validation.md, needs git + npx
 ```
 
+Animation performance on a recorded scan (no network; needs Playwright installed somewhere, see the header of the script):
+
+```sh
+node scripts/record-fixture.mjs owner/repo name                  # once, needs network: scripts/fixtures/<name>.json
+PW_DIR=<playwright folder> node scripts/perf.mjs debug --dpr=2 --throttle=4
+# the app can also replay a fixture: http://localhost:8000/?fixture=scripts/fixtures/postcss.json
+```
+
 ## How it works
 
 | Step | File | What happens |
@@ -57,7 +65,22 @@ node scripts/validate.mjs [owner/repo ...]      # writes results/validation.md, 
 | 3 | `analyze.js` | A dependency is **used** if imported anywhere, or mentioned (token-bounded) in `scripts`, in any other `package.json` key except the dependency maps, or in config files; also by its registry bin names and tool shorthands. Not imported and not mentioned = **ghost**. |
 | 4 | `registry.js` | BFS crawl of the npm registry from all declared deps (depth ≤ 6, cap 900 packages, 8 parallel requests, retry with backoff). |
 | 5 | `graph.js` | Reachability before/after removing each ghost and all ghosts together. |
-| 6 | `layout.js`, `viz.js` | Fixed radial layout (rings = depth, angular sectors proportional to subtree size, no force simulation), canvas animation. |
+| 6 | `choreo.js` | The animation's brain (pure, no DOM): an incremental fixed radial layout and the spider's planner. See "The animation" below. |
+| 7 | `viz.js` | Draws it on two stacked canvases (a static web layer and a small live layer). |
+
+## The animation
+
+The spider builds the web; it is not a canned video. `choreo.js` is a pure module (no DOM, no clock):
+
+- **Input:** the packages in the order the npm crawl delivers them (name, depth, parent, dependency list) and the canvas geometry.
+- **Layout (`WebLayout`):** a fixed radial layout that is built incrementally. Ring = depth. Each package gets an angular slot inside its parent's wedge (an equal share per child that parent announced) the moment it is delivered, and never moves afterwards, so the spider can start before the crawl finishes. **The limit:** equal shares ignore how big a branch will become, so heavy branches get crowded wedges (the long columns in fastify's web). A small radial stagger helps but does not fix it.
+- **Planner:** decides where the spider goes next using only delivered packages, only along threads that exist. It lays the spokes (declared dependencies) first, then fills each wedge; to reach more work it walks back along existing threads, faster; with nothing ready it returns nothing, so the spider hangs and waits for npm instead of wandering. The first 15 packages run at natural speed, then it accelerates (up to 14x) so a 464-package tree takes about 23 s.
+- **Output:** steps (`drop`, `lay`, `return`) with paths, speeds and rests, and `planWeb` for a whole timeline.
+- **Invariants (unit-tested in `test/choreo.test.mjs`):** a package exists only after the spider reached it and after its parent; the thread tip is exactly the spider's position; consecutive steps join with no jump; a return is a chain of parent/child pairs; a package delivered after the spider left its parent is still reached; the build fits the time budget.
+
+`viz.js` draws it on **two stacked canvases** so a frame never repaints the whole web: a static layer (rings, anchored threads and packages) that is only drawn into when the spider anchors something or packages are removed, and a small live layer (spider, thread being laid, dew glints, snip flashes, falling packages) cleared with a dirty rectangle. Threads are batched into `Path2D` strokes, packages into 16 colour buckets; no `shadowBlur`, no filters, pre-rendered glow sprites, devicePixelRatio clamped to 2, time-based movement with a clamped delta, no allocation in the frame loop, no work in a hidden tab, page counters written at most 10 times a second. In the prune phase the spider walks existing threads to the hub, snips a candidate's thread (flash, two ends recoil), and only packages in the shed report grey out, fall and fade; still-needed packages stay. **Skip animation** jumps to the finished state, **Replay animation** re-runs from the cached result, and `prefers-reduced-motion` shows the end state.
+
+**Performance** was measured in headless Chromium on one machine, on a recorded 682-package scan: frame-interval p95 in the worst case (retina DPR 2, 4x CPU throttle) went from 83 ms (build) and 100 ms (prune) to 16.7 ms and 16.8 ms, with rare single-frame hitches of up to 150 ms still present. Method, all numbers, the root cause and what is still off: [results/animation-perf.md](results/animation-perf.md). Those numbers are not from a real GPU, Safari, Firefox or a phone.
 
 Other findings: **misplaced** (a prod dependency only used from tests/examples/scripts) and **phantom** (imported but not declared) appear under "Also found".
 
@@ -80,6 +103,7 @@ Fragility colour: `min(1, 0.6*min(staleDays/1460,1) + 0.4*(maintainers==1) + 0.3
 - **Names resolved at runtime from strings are invisible**: view engines, plugins and loaders. Confirmed by removal tests: express's `hbs` (6 tests fail without it) and postcss's `@size-limit/preset-small-lib` (size-limit loads it by name; `test:size` fails without it). Karma auto-loads `karma-*` packages, and debug's `karma.conf.js` names `karma-browserify`, `karma-mocha` and (through the `ChromeHeadless` launcher) `karma-chrome-launcher` only by short name, so those three debug candidates are very probably false positives too (config read, tests not run: [results/karma-note.md](results/karma-note.md)). Treat every candidate as something to verify.
 - **Config keys.** A top-level package.json key counts as a mention of a package only when its name is exactly a declared package's name (`"simple-git-hooks": {...}`, `"lint-staged": {...}`). Metadata keys and the dependency maps never count. A tool configured under a different key is only found if its name appears in the value. (The exact-key rule was added after the postcss removal test showed `simple-git-hooks` was wrongly flagged.)
 - **"Lower confidence" badge is a heuristic and is not validated.** A candidate whose scope equals a used package's name (`@size-limit/...` with `size-limit`) or whose name starts with `<used package>-` (`karma-mocha` with `karma`) is shown as "likely loaded by <parent> by name". It is a general rule (no list of names; parents shorter than 4 characters are ignored), but I wrote it after seeing the postcss and debug results, so those results are not independent evidence for it. In the 13-repo run it marks 8 of the 13 candidates (fastify's two `@stylistic` packages via `eslint`, postcss's size-limit preset, axios's `@vitest/browser` via `vitest`, and four in debug); I have not checked whether those are the right ones.
+- **Crowded wedges.** The animation's layout is incremental (each package gets an equal share of its parent's wedge when it is delivered), so heavy branches look denser than a layout by subtree size would. Cross threads (shared dependencies) are drawn once, faintly, after the build, not laid by the spider.
 - **Package cap of 900** and depth 6; the UI warns when reached.
 - **JS/TS only, root `package.json` only.** `workspaces` stops with a monorepo message.
 - **GitHub API limit:** 60 requests/hour unauthenticated.
@@ -91,10 +115,10 @@ Fragility colour: `min(1, 0.6*min(staleDays/1460,1) + 0.4*(maintainers==1) + 0.3
 **Verified (I ran it, 2026-10-16, on this machine):**
 
 - Buttons, in headless Chromium on postcss/postcss: Copy command puts the exact command on the clipboard (and shows "Copy failed" when the clipboard is denied), PR text fills a box and copies it, Download image produces a valid 1200x630 PNG. A second scan without reload and an invalid URL after a good scan both reset the UI cleanly.
-- 61 offline unit tests pass (`npm test`, also with `fetch` replaced by a function that throws): every trap listed above has a test, including config-key mentions, the dependency-map exclusion, the caveat line and the lower-confidence rule (built-ins, bare `test`, glob with `/*`, dependency-map trap, `tap` vs `tape`, bin names, shorthands, `.bin` paths, misplaced, phantom, own name, file-cap ranking, URL forms, fake-registry BFS/depth/cap/scoped names/404/cycles, shed math with shared dependencies, still-needed-by, overlapping combined shed).
+- 70 offline unit tests pass (`npm test`, also with `fetch` replaced by a function that throws): every trap listed above has a test, including config-key mentions, the dependency-map exclusion, the caveat line, the lower-confidence rule and the animation choreography invariants (built-ins, bare `test`, glob with `/*`, dependency-map trap, `tap` vs `tape`, bin names, shorthands, `.bin` paths, misplaced, phantom, own name, file-cap ranking, URL forms, fake-registry BFS/depth/cap/scoped names/404/cycles, shed math with shared dependencies, still-needed-by, overlapping combined shed).
 - The GitHub trees API accepts `HEAD` (HTTP 200, `{sha,url,tree,truncated}`, `access-control-allow-origin: *`, 60/hour limit; HTTP 404 for a missing repo).
 - Acceptance on live repos (`scripts/acceptance.mjs`): see the next section.
-- The UI in a real headless Chromium (Playwright): intro, scan, crawl, prune and summary phases for fastify and mocha, zero console errors, no horizontal overflow at 1280 px and at 390 px (screenshots in `docs/`). Error messages for a bad URL, missing repo, repo without `package.json` and a monorepo (babel/babel) were produced by the real pipeline.
+- The UI in a real headless Chromium (Playwright): intro, scan, crawl, prune and summary phases for postcss and fastify (screenshots regenerated after the animation rework, 2026-10-16), zero console errors, no horizontal overflow at 1280 px and at 390 px (screenshots in `docs/`). Error messages for a bad URL, missing repo, repo without `package.json` and a monorepo (babel/babel) were produced by the real pipeline.
 
 **Not verified:**
 

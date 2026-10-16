@@ -28,7 +28,7 @@ const hash = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h
 
 // Fixed radial layout that can be built incrementally. A package gets an angular slot inside its parent's wedge
 // (equal share per child announced by that parent) the moment it is delivered, and keeps it. This is a
-// different trade-off from layout.js (sectors by subtree size, needs the finished tree): here the spider can start
+// different trade-off from a layout by subtree size (which needs the finished tree): here the spider can start
 // building while npm is still answering, and nothing ever re-flows.
 export class WebLayout {
   constructor(rootNames) {
