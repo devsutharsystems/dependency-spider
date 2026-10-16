@@ -4,11 +4,13 @@ Paste a GitHub repo and watch a spider find the dead libraries in it, and show h
 
 A static website: no backend, no build step, no API key, no LLM. Everything runs in your browser against three free public sources (GitHub raw files, the GitHub trees API, the npm registry).
 
-![Summary view](docs/fastify-4-summary.png)
+![Summary view, postcss/postcss](docs/showcase/4-summary.png)
+
+![Prune phase](docs/showcase/prune.gif)
 
 | Crawl | Prune | Phone |
 |---|---|---|
-| ![crawl](docs/fastify-2-crawl.png) | ![prune](docs/fastify-3-prune.png) | ![phone](docs/phone-4-summary.png) |
+| ![crawl](docs/showcase/2-crawl.png) | ![prune](docs/showcase/3-prune.png) | ![phone](docs/phone-4-summary.png) |
 
 ## What it is, honestly
 
@@ -83,7 +85,8 @@ Fragility colour: `min(1, 0.6*min(staleDays/1460,1) + 0.4*(maintainers==1) + 0.3
 
 **Verified (I ran it, 2026-10-16, on this machine):**
 
-- 50 offline unit tests pass (`npm test`): every trap listed above has a test (built-ins, bare `test`, glob with `/*`, dependency-map trap, `tap` vs `tape`, bin names, shorthands, `.bin` paths, misplaced, phantom, own name, file-cap ranking, URL forms, fake-registry BFS/depth/cap/scoped names/404/cycles, shed math with shared dependencies, still-needed-by, overlapping combined shed).
+- Buttons, in headless Chromium on postcss/postcss: Copy command puts the exact command on the clipboard (and shows "Copy failed" when the clipboard is denied), PR text fills a box and copies it, Download image produces a valid 1200x630 PNG. A second scan without reload and an invalid URL after a good scan both reset the UI cleanly.
+- 51 offline unit tests pass (`npm test`): every trap listed above has a test (built-ins, bare `test`, glob with `/*`, dependency-map trap, `tap` vs `tape`, bin names, shorthands, `.bin` paths, misplaced, phantom, own name, file-cap ranking, URL forms, fake-registry BFS/depth/cap/scoped names/404/cycles, shed math with shared dependencies, still-needed-by, overlapping combined shed).
 - The GitHub trees API accepts `HEAD` (HTTP 200, `{sha,url,tree,truncated}`, `access-control-allow-origin: *`, 60/hour limit; HTTP 404 for a missing repo).
 - Acceptance on live repos (`scripts/acceptance.mjs`): see the next section.
 - The UI in a real headless Chromium (Playwright): intro, scan, crawl, prune and summary phases for fastify and mocha, zero console errors, no horizontal overflow at 1280 px and at 390 px (screenshots in `docs/`). Error messages for a bad URL, missing repo, repo without `package.json` and a monorepo (babel/babel) were produced by the real pipeline.
@@ -93,7 +96,6 @@ Fragility colour: `min(1, 0.6*min(staleDays/1460,1) + 0.4*(maintainers==1) + 0.3
 - Firefox/Safari, a real phone, and the rate-limit error in a browser (the rate-limit path is unit-tested with a fake response only).
 - The GitHub Pages workflow (`.github/workflows/pages.yml`) has never run. The deployed site has not been opened.
 - The 900-package cap path and the 429 retry path against the real registry (unit-tested with fakes only).
-- The "Download image" and "Copy command" buttons were not clicked in the browser run.
 - Behaviour on repos outside the ones listed here.
 
 ## Acceptance
@@ -119,10 +121,31 @@ Full table, every disagreement and the method: [results/validation.md](results/v
 Honest reading:
 
 - The two tools agree on **every** candidate this scanner reports except one, but they never report the same full set on any repo (0 of 13).
-- This scanner is **much more conservative**: it reports about a fifth as many candidates. Almost all of depcheck's extra results are CLI tools (`eslint`, `mocha`, `nyc`, `c8`, `husky`, `prettier`, `typescript`, ...) that this scanner finds mentioned in `scripts` or config. Whether those are depcheck false positives (it cannot see bins without `node_modules`) or this scanner being too lenient is **not established by this run**; running depcheck on installed repos was not done.
-- So this scanner has the cost of lower recall by design (over-counting usage), and it was not measured against any ground truth. No precision or recall numbers are claimed.
+- This scanner is **much more conservative**: it reports about a fifth as many candidates. Almost all of depcheck's extra results are CLI tools (`eslint`, `mocha`, `nyc`, `c8`, `husky`, `prettier`, `typescript`, ...) that this scanner finds mentioned in `scripts` or config.
+- **Most of that gap is depcheck running without an install.** On the 3 repos where I re-ran depcheck after `npm install --ignore-scripts` (table below), its flags fall from 23 to 8, and my 8 candidates and its 8 overlap on 6.
+- This scanner has lower recall by design (over-counting usage), and neither tool was measured against ground truth. No precision or recall numbers are claimed.
 - Where it is worse than depcheck: it cannot tell a tool that is merely named in a script from one that actually runs; it misses usage hidden in unread files (mocha's `tsx`); its mention matching is lenient for short, common names.
-- The stretch goal (remove one flagged dependency, run the repo's tests) was **not done**.
+
+### depcheck with installing (3 repos)
+
+Same repos, same scanner results, but depcheck re-run after `npm install --ignore-scripts --no-audit --no-fund --legacy-peer-deps` (`scripts/depcheck-installed.mjs`, details in [results/validation-installed.md](results/validation-installed.md)).
+
+| Repo | depcheck, no install | depcheck, installed | My candidates | Both (installed) | Only mine now | Only depcheck now |
+|---|---|---|---|---|---|---|
+| postcss/postcss | 9 | 4 | 3 | 3 | 0 | 1 (`ts-node`) |
+| expressjs/express | 4 | 1 | 1 | 1 | 0 | 0 |
+| debug-js/debug | 10 | 3 | 4 | 2 | 2 (`karma-browserify`, `karma-mocha`) | 1 (`brfs`) |
+| **Total** | **23** | **8** | **8** | **6** | **2** | **2** |
+
+On debug, depcheck (installed) no longer flags `karma-browserify` and `karma-mocha`, which this scanner does. Karma plugins are loaded by short name (`frameworks: ['mocha']`), so these two are probably false positives of this scanner. I did not verify that by removing them.
+
+### Removal test: 1 repo, 1 candidate, 1 false positive
+
+On express, the one candidate (`hbs`) was removed in a throwaway clone: tests went from **1261 passing** to **1255 passing, 6 failing** (all in the `mvc` example acceptance test). Express loads view engines by name at runtime (`exports.engine = 'hbs'`), which a regex scanner and depcheck both miss. One repo is not a measurement: it only shows that "candidate" has to be read literally. Commands and output summary: [results/removal-test.md](results/removal-test.md).
+
+## Showcase run
+
+`postcss/postcss`, run in the app on 2026-10-16 (headless Chromium, `docs/showcase/`): 21 declared dependencies (3 prod, 18 dev), 63 of 63 source files scanned, dependency tree 228 packages. Candidates, all three also flagged by depcheck: `@size-limit/preset-small-lib` (sheds 6), `multiocular` (sheds 17), `simple-git-hooks` (sheds 1). Together: 228 to 204 packages (-24, 10.5% smaller). `typescript` is not reported because `@logux/oxc-configs` lists it as a peer dependency. That is a modest result, not a dramatic one, and it moves as npm publishes new versions.
 
 ## Deploy (GitHub Pages)
 

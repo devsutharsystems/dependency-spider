@@ -1,0 +1,111 @@
+[
+  {
+    "repo": "postcss/postcss",
+    "installSeconds": 30,
+    "depcheckInstalled": [
+      "@size-limit/preset-small-lib",
+      "multiocular",
+      "simple-git-hooks",
+      "ts-node"
+    ],
+    "depcheckNoInstall": [
+      "@size-limit/preset-small-lib",
+      "c8",
+      "check-dts",
+      "eslint",
+      "multiocular",
+      "simple-git-hooks",
+      "size-limit",
+      "ts-node",
+      "typescript"
+    ],
+    "mine": [
+      "@size-limit/preset-small-lib",
+      "multiocular",
+      "simple-git-hooks"
+    ],
+    "mineInInstalled": [
+      "@size-limit/preset-small-lib",
+      "multiocular",
+      "simple-git-hooks"
+    ],
+    "stillOnlyDepcheck": [
+      "ts-node"
+    ],
+    "noLongerFlagged": [
+      "c8",
+      "check-dts",
+      "eslint",
+      "size-limit",
+      "typescript"
+    ]
+  },
+  {
+    "repo": "expressjs/express",
+    "installSeconds": 5,
+    "depcheckInstalled": [
+      "hbs"
+    ],
+    "depcheckNoInstall": [
+      "eslint",
+      "hbs",
+      "mocha",
+      "nyc"
+    ],
+    "mine": [
+      "hbs"
+    ],
+    "mineInInstalled": [
+      "hbs"
+    ],
+    "stillOnlyDepcheck": [],
+    "noLongerFlagged": [
+      "eslint",
+      "mocha",
+      "nyc"
+    ]
+  },
+  {
+    "repo": "debug-js/debug",
+    "installSeconds": 57,
+    "depcheckInstalled": [
+      "brfs",
+      "karma-chrome-launcher",
+      "mocha-lcov-reporter"
+    ],
+    "depcheckNoInstall": [
+      "brfs",
+      "browserify",
+      "coveralls",
+      "karma",
+      "karma-browserify",
+      "karma-chrome-launcher",
+      "karma-mocha",
+      "mocha",
+      "mocha-lcov-reporter",
+      "xo"
+    ],
+    "mine": [
+      "karma-browserify",
+      "karma-chrome-launcher",
+      "karma-mocha",
+      "mocha-lcov-reporter"
+    ],
+    "mineInInstalled": [
+      "karma-chrome-launcher",
+      "mocha-lcov-reporter"
+    ],
+    "stillOnlyDepcheck": [
+      "brfs"
+    ],
+    "noLongerFlagged": [
+      "browserify",
+      "coveralls",
+      "karma",
+      "karma-browserify",
+      "karma-mocha",
+      "mocha",
+      "xo"
+    ]
+  }
+]
