@@ -19,7 +19,7 @@ export function plainReport(r) {
   const lines = [
     `${r.repo.owner}/${r.repo.repo}  (ref ${r.ref})`,
     `declared: ${r.counts.declared} (${r.counts.prod} prod, ${r.counts.dev} dev) | files fetched: ${r.counts.fetched} (${r.counts.sourceFiles} source, ${r.counts.configFiles} config) | packages imported: ${r.counts.importedPackages}`,
-    ...(scanBanner(r.scan) ? [`${scanBanner(r.scan).level === 'strong' ? 'WARNING: ' : 'NOTE: '}${scanBanner(r.scan).text}`] : []),
+    ...(scanBanner(r.scan) ? [`${r.scan.state === 'weak' ? 'WARNING: ' : 'NOTE: '}${scanBanner(r.scan).text}`] : []),
     ...(r.fetchAborted ? [`WARNING: ${abortedBanner(r.scan?.read ?? 0).text}`] : []),
     `dependency tree: ${s.before} packages${r.capped ? ' (cap reached, tree is partial)' : ''}`,
     '',

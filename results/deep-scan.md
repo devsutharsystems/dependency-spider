@@ -17,16 +17,16 @@ Caveats: Node on one machine and one network, one run per repo, no token. Mobile
 
 ## 2. Real scans: normal cap (300 files) vs deep cap (1,500 files)
 
-N = source files actually read, M = eligible source files (after the usual exclusions). "Banner" is the state the UI shows (complete: none, partial from 25%: neutral info, under 25%: strong banner + "partial scan: unverified" on every card + "up to" headline).
+N = source files actually read, M = eligible source files (after the usual exclusions). "Banner" is the state the UI shows (complete: none; from 25%: neutral info banner; under 25%: a one-line banner in the same neutral style + "partial scan: unverified" on every card + "up to" headline. Earlier in this work the under-25% banner was a longer red "strong" one; the table below was measured then and the column shows today's style).
 
 | Repo | Mode | Read / eligible | Share | Banner | Candidates | Shed headline | Pipeline time |
 |---|---|---|---|---|---|---|---|
 | mochajs/mocha | normal | 300 / 478 | 63% | info | 1 | -2 | 35.3 s |
 | mochajs/mocha | deep | 478 / 478 | 100% | none | 1 | -2 | 34.6 s |
-| nrwl/nx | normal | 300 / 5,135 | 6% | strong | 144 | up to -232 | 50.8 s |
+| nrwl/nx | normal | 300 / 5,135 | 6% | one-line info | 144 | up to -232 | 50.8 s |
 | nrwl/nx | deep | 1,500 / 5,135 | 29% | info | 85 | -113 | 40.5 s |
-| vercel/next.js | normal | 300 / 24,991 | 1% | strong | 93 | up to -303 | 54.9 s |
-| vercel/next.js | deep | 1,500 / 24,991 | 6% | strong | 71 | up to -226 | 65.9 s |
+| vercel/next.js | normal | 300 / 24,991 | 1% | one-line info | 93 | up to -303 | 54.9 s |
+| vercel/next.js | deep | 1,500 / 24,991 | 6% | one-line info | 71 | up to -226 | 65.9 s |
 
 Pipeline time includes the registry crawl (900 packages for nx and next.js), which varies from run to run by tens of seconds, so these times are not a clean measure of the extra file reading (that is the 61 to 65 s in section 1 for 1,500 files).
 
@@ -38,8 +38,8 @@ Pipeline time includes the registry crawl (900 packages for nx and next.js), whi
 
 ## 3. Reading the numbers honestly
 
-- **Deep scan removes false ghosts but cannot make a large repo complete.** On mocha (478 files) it reaches 100% and the banner disappears. On nx it moves the scan from 6% to 29% and removes 59 of 144 candidates, and that is still a partial scan: the 85 remaining candidates are **unverified** and likely still include many false ghosts (nx's own `@nx/*` plugins, for instance, are loaded by name at runtime). On next.js 1,500 of 24,991 files is 6%, so the strong banner, the "unverified" badges and the "up to" headline all remain. A 23,000-file repo stays far from complete at any cap I measured as workable.
-- **Shed numbers are upper bounds** whenever the banner is strong: nx's headline went from "up to -232" to "-113", next.js's from "up to -303" to "up to -226", because fewer candidates remain, not because the remaining ones were confirmed.
+- **Deep scan removes false ghosts but cannot make a large repo complete.** On mocha (478 files) it reaches 100% and the banner disappears. On nx it moves the scan from 6% to 29% and removes 59 of 144 candidates, and that is still a partial scan: the 85 remaining candidates are **unverified** and likely still include many false ghosts (nx's own `@nx/*` plugins, for instance, are loaded by name at runtime). On next.js 1,500 of 24,991 files is 6%, so the under-25% banner, the "unverified" badges and the "up to" headline all remain. A 23,000-file repo stays far from complete at any cap I measured as workable.
+- **Shed numbers are upper bounds** whenever the scan is under 25%: nx's headline went from "up to -232" to "-113", next.js's from "up to -303" to "up to -226", because fewer candidates remain, not because the remaining ones were confirmed.
 - I did not check any of the remaining nx or next.js candidates by removing them and running the repo's tests.
 
 ## 4. Real-browser runs of the UI (headed Chrome, real network)
