@@ -1,6 +1,6 @@
 // Orchestration shared by the browser and the Node scripts: URL -> files -> imports -> crawl -> findings -> shed.
 import { parseRepoUrl, fetchTree, fetchPackageJson, pickSourceFiles, pickConfigFiles, fetchMany } from './github.js';
-import { classify } from './analyze.js';
+import { classify, LOCAL_SPEC } from './analyze.js';
 import { crawl, addModified, createCache } from './registry.js';
 import { shedReport, uninstallCommand } from './graph.js';
 import { SpiderError } from './util.js';
@@ -19,7 +19,8 @@ export async function runPipeline(input, { fetch: fetchFn = globalThis.fetch, to
   if (pkg.workspaces) throw new SpiderError('MONOREPO', 'This repo declares `workspaces` (a monorepo). Dependency Spider only analyses a single root package.json.');
   const prod = Object.keys(pkg.dependencies || {});
   const dev = Object.keys(pkg.devDependencies || {});
-  const manifestNames = [...new Set([...prod, ...dev])];
+  const allSpecs = { ...pkg.devDependencies, ...pkg.dependencies };
+  const manifestNames = [...new Set([...prod, ...dev])].filter((n) => !LOCAL_SPEC.test(allSpecs[n])); // local paths are not on npm
   if (!manifestNames.length) throw new SpiderError('NO_DEPS', 'This package.json declares no dependencies or devDependencies, nothing to scan.');
 
   const sourcePaths = pickSourceFiles(tree.paths, maxFiles);

@@ -36,7 +36,7 @@ export function shedReport(graph, manifestNames, ghosts) {
     after: afterAll.size,
     combinedShed: combinedSet.size,
     combinedSet,
-    percent: before.size ? Math.round((combinedSet.size / before.size) * 100) : 0,
+    percent: before.size ? Math.round((combinedSet.size / before.size) * 1000) / 10 : 0, // one decimal
     perGhost,
   };
 }

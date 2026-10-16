@@ -31,7 +31,7 @@ test('combined shed is overlap-aware, not a sum', () => {
   assert.equal(r.perGhost[0].shed, 2); // g1 + a   (common stays because g2 needs it)
   assert.equal(r.perGhost[1].shed, 2);
   assert.equal(r.combinedShed, 7 - 1); // everything but keep: sum would be 4
-  assert.equal(r.percent, Math.round((6 / 7) * 100));
+  assert.equal(r.percent, Math.round((6 / 7) * 1000) / 10);
 });
 test('uninstallCommand splits prod and dev', () => {
   const cmd = uninstallCommand([{ name: 'a', section: 'dependencies' }, { name: 'b', section: 'devDependencies' }, { name: '@s/c', section: 'devDependencies' }]);

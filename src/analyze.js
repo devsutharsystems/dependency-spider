@@ -46,7 +46,7 @@ export function shorthands(name) {
 // Tools that need a companion package without naming it: `webpack` runs through `webpack-cli`.
 const COMPANIONS = { 'webpack-cli': ['webpack'] };
 // Specs that point at local code, not the registry: nothing to find in npm, so never reported.
-const LOCAL_SPEC = /^(\.{1,2}\/|file:|link:|portal:|workspace:)/;
+export const LOCAL_SPEC = /^(\.{1,2}\/|file:|link:|portal:|workspace:)/;
 
 export function aliasesOf(name, bins = []) {
   return [...new Set([name, ...bins, ...shorthands(name)])];
