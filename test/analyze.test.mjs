@@ -84,3 +84,46 @@ test('phantoms inside nested package roots (docs/ with its own package.json) are
   const r = run({ name: 'me' }, [f('docs/a.ts', "import 'astro'"), f('lib/b.js', "require('real-phantom')")], { nestedRoots: ['docs/'] });
   assert.deepEqual(names(r.phantoms), ['real-phantom']);
 });
+test('a top-level config block named like a declared package counts as a mention', () => {
+  const pkg = { name: 'me', 'simple-git-hooks': { 'pre-commit': './x.js' }, 'lint-staged': {}, devDependencies: { 'simple-git-hooks': '1', 'lint-staged': '1', ghost: '1' } };
+  assert.deepEqual(names(run(pkg, []).ghosts), ['ghost']);
+});
+test('key-name mentions never come from the dependency maps or metadata keys', () => {
+  const pkg = { name: 'me', version: '1', files: ['x'], bin: { x: 'y' }, exports: {}, main: 'a', scripts: {},
+    dependencies: { name: '1', version: '1', files: '1', dependencies: '1' }, devDependencies: { ghost: '1', scripts: '1', main: '1', bin: '1', exports: '1' },
+    overrides: { ghost: '2' }, peerDependencies: { ghost: '*' } };
+  // every declared name here equals a metadata/map key, none may be rescued by that
+  assert.deepEqual(names(run(pkg, []).ghosts), ['bin', 'dependencies', 'exports', 'files', 'ghost', 'main', 'name', 'scripts', 'version']);
+});
+test('a config key without a matching declared package is just ignored', () => {
+  const r = run({ name: 'me', jest: {}, devDependencies: { ghost: '1' } }, []);
+  assert.deepEqual(names(r.ghosts), ['ghost']);
+});
+
+// ---- likelyLoadedBy: general rule, tested with invented names only ----
+import { likelyLoadedBy } from '../src/analyze.js';
+
+test('likelyLoadedBy: scope equal to a used package, or name starting with "<used>-"', () => {
+  const used = ['acme-tool', 'widgetkit'];
+  assert.equal(likelyLoadedBy('@acme-tool/preset-x', used), 'acme-tool');
+  assert.equal(likelyLoadedBy('acme-tool-plugin-y', used), 'acme-tool');
+  assert.equal(likelyLoadedBy('@widgetkit/core', used), 'widgetkit');
+  assert.equal(likelyLoadedBy('@other/widgetkit-adapter', used), 'widgetkit');
+});
+test('likelyLoadedBy: unrelated names, exact same name and short parents give null', () => {
+  assert.equal(likelyLoadedBy('unrelated', ['acme-tool']), null);
+  assert.equal(likelyLoadedBy('acme-tooling', ['acme-tool']), null); // "acme-tool-" prefix needed, not a substring
+  assert.equal(likelyLoadedBy('acme-tool', ['acme-tool']), null);
+  assert.equal(likelyLoadedBy('is-number', ['is']), null);
+});
+test('likelyLoadedBy: picks the longest matching parent', () => {
+  assert.equal(likelyLoadedBy('acme-tool-extra-plugin', ['acme-tool', 'acme-tool-extra']), 'acme-tool-extra');
+});
+test('classify marks lower-confidence ghosts only when the parent is itself used', () => {
+  const pkg = { name: 'me', scripts: { go: 'acme-tool run' }, devDependencies: { 'acme-tool': '1', 'acme-tool-plugin-a': '1', 'lonely-plugin-b': '1', 'deadparent': '1', 'deadparent-plugin': '1' } };
+  const r = run(pkg, []);
+  const by = Object.fromEntries(r.ghosts.map((g) => [g.name, g.likelyLoadedBy]));
+  assert.equal(by['acme-tool-plugin-a'], 'acme-tool');
+  assert.equal(by['lonely-plugin-b'], undefined);
+  assert.equal(by['deadparent-plugin'], undefined); // its would-be parent is a ghost too
+});

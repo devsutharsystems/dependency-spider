@@ -25,6 +25,15 @@ const renderMd = (rows) => {
     '',
   ].join('\n');
 };
+if (process.argv[2] === '--recompute') { // keep depcheck's installed output, take my candidates from the current validation.json
+  const rows = JSON.parse(readFileSync(join(root, 'results', 'validation-installed.json'), 'utf8')).map((r) => {
+    const b = base.find((x) => x.repo === r.repo);
+    return { ...r, mine: b.mine, mineInInstalled: b.mine.filter((n) => r.depcheckInstalled.includes(n)), stillOnlyDepcheck: r.depcheckInstalled.filter((n) => !b.mine.includes(n)) };
+  });
+  writeFileSync(join(root, 'results', 'validation-installed.json'), JSON.stringify(rows, null, 2));
+  writeFileSync(join(root, 'results', 'validation-installed.md'), renderMd(rows));
+  process.exit(0);
+}
 if (process.argv[2] === '--render') {
   writeFileSync(join(root, 'results', 'validation-installed.md'), renderMd(JSON.parse(readFileSync(join(root, 'results', 'validation-installed.json'), 'utf8'))));
   process.exit(0);

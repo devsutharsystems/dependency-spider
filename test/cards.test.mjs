@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildCard, CAVEAT } from '../src/cards.js';
+import { buildCard, CAVEAT, badgeText } from '../src/cards.js';
 
 // Minimal fake element, enough to check what a card contains.
 const el = (tag, className, text) => ({ tag, className, textContent: text ?? '', children: [], append(...c) { this.children.push(...c); } });
@@ -15,4 +15,10 @@ test('every candidate card renders the runtime-loading caveat', () => {
 });
 test('the caveat is generic: it names no package or framework', () => {
   assert.doesNotMatch(CAVEAT, /hbs|express|handlebars/i);
+});
+test('a card with a likely parent shows the lower-confidence badge between name and state', () => {
+  const { card } = buildCard(el, 'acme-tool-plugin-a', 'acme-tool');
+  assert.deepEqual(card.children.map((c) => c.textContent), ['acme-tool-plugin-a', 'Lower confidence: likely loaded by acme-tool by name', 'queued', CAVEAT]);
+  assert.equal(card.children[1].className, 'badge');
+  assert.equal(badgeText('x-y'), 'Lower confidence: likely loaded by x-y by name');
 });

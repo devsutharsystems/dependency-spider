@@ -1,6 +1,8 @@
 // Validation: run the scanner on popular non-monorepo JS projects and compare with `depcheck`.
 // For every disagreement it records evidence (where my scanner saw the package, or what `git grep` finds).
-// Usage: GITHUB_TOKEN=... node scripts/validate.mjs [owner/repo ...]   (default list below)
+// Usage: GITHUB_TOKEN=... node scripts/validate.mjs [--reuse] [owner/repo ...]   (default list below)
+// --reuse: keep depcheck's output from the existing results/validation.json (it does not depend on this code, and the
+// clones may have been npm-installed since, which would change a fresh no-install run). Only the scanner side is re-run.
 // Needs network, git and npx. Clones go to clones/ (git-ignored). Output: results/validation.md + .json
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
@@ -9,7 +11,10 @@ import { fileURLToPath } from 'node:url';
 import { runPipeline } from '../src/pipeline.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const REPOS = process.argv.slice(2).length ? process.argv.slice(2) : [
+const reuse = process.argv.includes('--reuse');
+const args = process.argv.slice(2).filter((a) => a !== '--reuse');
+const previous = reuse ? JSON.parse(readFileSync(join(root, 'results', 'validation.json'), 'utf8')) : [];
+const REPOS = args.length ? args : [
   'fastify/fastify', 'expressjs/express', 'koajs/koa', 'hexojs/hexo', 'mochajs/mocha', 'postcss/postcss',
   'axios/axios', 'chalk/chalk', 'tj/commander.js', 'winstonjs/winston', 'jprichardson/node-fs-extra', 'debug-js/debug', 'expressjs/body-parser',
 ];
@@ -51,9 +56,11 @@ for (const repo of REPOS) {
     row.mine = r.ghosts.map((g) => g.name).sort();
     row.shed = r.shed.combinedShed; row.before = r.shed.before; row.after = r.shed.after;
     row.filesCapped = r.filesCapped; row.declared = r.counts.declared; row.sourceFiles = `${r.counts.sourceFiles}/${r.counts.eligibleSourceFiles}`;
+    row.loadedBy = Object.fromEntries(r.ghosts.filter((g) => g.likelyLoadedBy).map((g) => [g.name, g.likelyLoadedBy]));
     row.perGhost = Object.fromEntries(r.shed.perGhost.map((g) => [g.name, g.stillNeededBy ? `needed by ${g.stillNeededBy}` : g.shed]));
     const dir = clone(repo);
-    const dc = depcheck(dir);
+    const old = previous.find((p) => p.repo === repo);
+    const dc = reuse && old?.depcheck ? { unused: old.depcheck } : depcheck(dir);
     if (dc.error) { row.error = `depcheck failed: ${dc.error}`; }
     else {
       row.depcheck = [...dc.unused].sort();
@@ -94,7 +101,7 @@ const md = [
   '',
   '## Agreed candidates',
   '',
-  ...ok.filter((r) => r.both.length).map((r) => `- **${r.repo}**: ${r.both.map((n) => `\`${n}\` (${r.perGhost[n]})`).join(', ')}`),
+  ...ok.filter((r) => r.both.length).map((r) => `- **${r.repo}**: ${r.both.map((n) => `\`${n}\` (${r.perGhost[n]}${r.loadedBy[n] ? `; lower confidence: likely loaded by ${r.loadedBy[n]}` : ''})`).join(', ')}`),
   '',
 ];
 writeFileSync(join(root, 'results', 'validation.md'), md.join('\n'));

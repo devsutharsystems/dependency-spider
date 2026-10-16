@@ -3,6 +3,11 @@
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
 export function ghostLine(g) {
+  const base = ghostLineBase(g);
+  return g.likelyLoadedBy ? `${base} (lower confidence: likely loaded by ${g.likelyLoadedBy} by name)` : base;
+}
+
+function ghostLineBase(g) {
   return g.stillNeededBy
     ? `${g.name}: still needed by ${g.stillNeededBy}, removing it will not shrink the tree`
     : `${g.name}: sheds ${plural(g.shed, 'package')}`;

@@ -21,6 +21,13 @@ export function mentionText(pkg, configTexts = []) {
   return parts.join('\n').replace(/(?:\.{1,2}\/)*node_modules\/\.bin\//g, '');
 }
 
+// A top-level package.json key named exactly like a declared package is that package's config block
+// (`"simple-git-hooks": {...}`, `"lint-staged": {...}`), so it counts as a mention. Metadata keys and the
+// dependency maps (SKIP_KEYS) never count, otherwise every dependency would "mention" itself.
+export function configKeyNames(pkg) {
+  return new Set(Object.keys(pkg).filter((k) => !SKIP_KEYS.has(k)));
+}
+
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // The name must not be glued to other name characters: `tap` must not match `tape`.
@@ -48,6 +55,25 @@ const COMPANIONS = { 'webpack-cli': ['webpack'] };
 // Specs that point at local code, not the registry: nothing to find in npm, so never reported.
 export const LOCAL_SPEC = /^(\.{1,2}\/|file:|link:|portal:|workspace:)/;
 
+// Lower-confidence hint, a general rule (no list of names): plugins, presets and adapters are usually loaded by
+// name from their parent tool, and share its name. `@parent/anything` and `parent-anything` look like that when
+// `parent` is a declared package the repo does use. Parents shorter than 4 characters are ignored (`is-number`
+// is not a plugin of `is`). Returns the longest matching used parent, or null. NOT validated, see the README.
+export function likelyLoadedBy(name, usedNames) {
+  const stem = name.startsWith('@') ? name.slice(1).split('/')[0] : null;
+  let best = null;
+  for (const p of usedNames) {
+    if (p === name || p.length < 4) continue;
+    const match = stem ? stem === p : name.startsWith(`${p}-`);
+    if (match && (!best || p.length > best.length)) best = p;
+  }
+  if (!best && stem) { // `@scope/parent-thing`: the part after the slash starts with a used package's name
+    const rest = name.split('/')[1];
+    for (const p of usedNames) if (p.length >= 4 && p !== name && rest.startsWith(`${p}-`) && (!best || p.length > best.length)) best = p;
+  }
+  return best;
+}
+
 export function aliasesOf(name, bins = []) {
   return [...new Set([name, ...bins, ...shorthands(name)])];
 }
@@ -71,7 +97,8 @@ export function classify({ pkg, files, configTexts = [], bins = {}, nestedRoots 
   const declared = new Set([...prod, ...dev, ...Object.keys(pkg.peerDependencies || {}), ...Object.keys(pkg.optionalDependencies || {}),
     ...(Array.isArray(pkg.bundledDependencies) ? pkg.bundledDependencies : [])]);
 
-  const isMentioned = (name) => aliasesOf(name, bins[name]).some((a) => mentions(text, a));
+  const configKeys = configKeyNames(pkg);
+  const isMentioned = (name) => configKeys.has(name) || aliasesOf(name, bins[name]).some((a) => mentions(text, a));
   const isUsed = (name) => kindsByPkg.has(name) || isMentioned(name);
   const ghosts = [];
   const misplaced = [];
@@ -96,6 +123,8 @@ export function classify({ pkg, files, configTexts = [], bins = {}, nestedRoots 
       }
     }
   }
+  const used = [...prod, ...dev].filter((n) => !ghosts.some((g) => g.name === n));
+  for (const g of ghosts) { const parent = likelyLoadedBy(g.name, used); if (parent) g.likelyLoadedBy = parent; }
   const phantoms = [];
   for (const [name, kinds] of kindsByPkg) {
     if (declared.has(name) || name === pkg.name || name.startsWith('@types/')) continue;

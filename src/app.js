@@ -147,7 +147,7 @@ async function showResult(r) {
   const cards = new Map();
   $('cards').append(el('h2', null, 'Unused candidates'), el('div', 'muted', 'never imported, not in scripts or config'));
   for (const g of s.perGhost) {
-    const { card, state } = buildCard(el, g.name);
+    const { card, state } = buildCard(el, g.name, g.likelyLoadedBy);
     cards.set(g.name, { card, state });
     $('cards').append(card);
   }
