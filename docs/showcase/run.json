@@ -1,0 +1,51 @@
+{
+  "date": "2026-10-16T09:18:08.855Z",
+  "repo": {
+    "owner": "postcss",
+    "repo": "postcss"
+  },
+  "declared": 21,
+  "prod": 3,
+  "dev": 18,
+  "sourceFiles": 63,
+  "eligible": 63,
+  "configFiles": 1,
+  "tree": 228,
+  "after": 204,
+  "shed": 24,
+  "percent": 10.5,
+  "capped": false,
+  "filesCapped": false,
+  "ghosts": [
+    {
+      "name": "@size-limit/preset-small-lib",
+      "section": "devDependencies",
+      "shed": 6,
+      "stillNeededBy": null
+    },
+    {
+      "name": "multiocular",
+      "section": "devDependencies",
+      "shed": 17,
+      "stillNeededBy": null
+    },
+    {
+      "name": "simple-git-hooks",
+      "section": "devDependencies",
+      "shed": 1,
+      "stillNeededBy": null
+    }
+  ],
+  "misplaced": [],
+  "phantoms": [
+    "@jazzer.js/core"
+  ],
+  "peerKept": [
+    {
+      "name": "typescript",
+      "section": "devDependencies",
+      "neededBy": "@logux/oxc-configs"
+    }
+  ],
+  "command": "npm uninstall -D @size-limit/preset-small-lib multiocular simple-git-hooks"
+}

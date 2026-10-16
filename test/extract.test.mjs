@@ -35,3 +35,8 @@ test('block comments are NOT stripped: a glob with /* does not swallow imports',
   const src = `const files = glob('lib/*.js');\nconst x = require('after-glob');\nconst y = 'src/*/x';`;
   assert.deepEqual(extractImports(src), ['after-glob']);
 });
+test('CSS @import strings and file-like names are not packages', () => {
+  assert.deepEqual(extractImports(`parse('@import"a.css"'); parse('@import "b.css"'); import 'c.css'; require('real-pkg')`), ['real-pkg']);
+  assert.equal(toPackageName('chart.js'), 'chart.js');
+  assert.equal(toPackageName('data.json'), null);
+});

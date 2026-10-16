@@ -11,6 +11,8 @@ export const BUILTINS = new Set([
   'trace_events', 'tty', 'url', 'util', 'v8', 'vm', 'wasi', 'worker_threads', 'zlib',
 ]);
 
+// Names ending like a data/asset file are file names in strings (`a.css`), not packages. `.js` is allowed: chart.js is real.
+const FILE_LIKE = /\.(css|scss|sass|less|json|svg|png|jpe?g|gif|html?|md|txt|map|ya?ml|woff2?|ttf)$/i;
 const NPM_NAME = /^(?:@[A-Za-z0-9~-][A-Za-z0-9._~-]*\/)?[A-Za-z0-9~-][A-Za-z0-9._~-]*$/;
 
 // 'lodash/fp' -> 'lodash', '@scope/pkg/sub' -> '@scope/pkg'; null when it is not an npm package.
@@ -27,12 +29,12 @@ export function toPackageName(spec) {
     name = parts[0];
     if (BUILTINS.has(name)) return null;
   }
-  return NPM_NAME.test(name) ? name : null;
+  return NPM_NAME.test(name) && !(FILE_LIKE.test(name) && !name.startsWith('@')) ? name : null;
 }
 
 const PATTERNS = [
   /\bfrom\s*(['"])([^'"\n]+)\1/g,
-  /\bimport\s*(['"])([^'"\n]+)\1/g,
+  /(?<![@\w.])import\s*(['"])([^'"\n]+)\1/g, // not `@import "a.css"` (CSS)
   /\bimport\s*\(\s*(['"])([^'"\n]+)\1\s*\)/g,
   /\brequire(?:\.resolve)?\s*\(\s*(['"])([^'"\n]+)\1\s*\)/g,
 ];

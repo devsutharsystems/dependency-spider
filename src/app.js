@@ -8,6 +8,7 @@ const $ = (id) => document.getElementById(id);
 const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const viz = new Viz($('web'), { reducedMotion: reduced });
 window.__viz = viz; // handy for debugging in the console
+window.__spider = { get result() { return current; } };
 
 const EXAMPLES = ['fastify/fastify', 'mochajs/mocha', 'hexojs/hexo', 'expressjs/express'];
 for (const ex of EXAMPLES) {
