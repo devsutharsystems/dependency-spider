@@ -4,7 +4,7 @@ Everything below is checked against the code and against runs on 2026-10-16. Num
 
 ## The one-minute version
 
-You paste a GitHub repo. The app reads `package.json` and up to 300 source files, finds the dependencies the code never imports and no script or config mentions (candidates), crawls the npm registry to build the dependency tree, and shows how many packages would leave the tree if those candidates were removed. It is a static site: no backend, no API key, no LLM. depcheck and Knip already find unused dependencies; the extra here is the "what does removing it shed" number, the visualization, and a public, honest comparison with depcheck.
+You paste a GitHub repo. The app reads `package.json` and up to 300 source files (1,500 with Deep scan), finds the dependencies the code never imports and no script or config mentions (candidates), crawls the npm registry to build the dependency tree, and shows how many packages would leave the tree if those candidates were removed. It is a static site: no backend, no API key, no LLM. depcheck and Knip already find unused dependencies; the extra here is the "what does removing it shed" number, the visualization, and a public, honest comparison with depcheck.
 
 ## The modules, one paragraph each
 
@@ -79,7 +79,7 @@ All colours come from one palette object in `theme.js` that feeds both the CSS v
 
 **3. The depcheck baseline correction.** My first comparison ran depcheck without installing dependencies and showed depcheck flagging 84 packages across 13 repos, many times what my scanner reported, which invites the reading "my tool is more accurate". That was an unfair baseline: without `node_modules`, depcheck cannot see the bins of installed tools. After installing dependencies on 3 repos, depcheck's flags fell from 23 to 8; my scanner reported 7 there, and we overlap on 5. And agreement is not correctness anyway: both tools flagged `hbs` and `@size-limit/preset-small-lib`. So I relabelled the 13-repo table as "without installing" and made the installed comparison the lead.
 
-## Ten likely questions
+## Likely questions
 
 **1. Why build this when depcheck and Knip exist?** Because the interesting number is different: how many packages in the whole dependency tree a removal sheds, shown visually. It is not a better detector, and the README says so. It is also a project to learn from and to measure honestly.
 
@@ -97,9 +97,11 @@ All colours come from one palette object in `theme.js` that feeds both the CSS v
 
 **8. Why not use a force-directed graph, and why not size sectors by subtree size?** A force layout exploded with 400+ nodes in an earlier attempt, and it never settles, so the spider could not walk to a stable place. Sizing sectors by subtree size is tidier but needs the finished tree, which the spider cannot have while npm is still answering. So the layout is fixed and incremental. The trade-off is crowded wedges on heavy branches.
 
-**9. What happens with a huge repo or rate limits?** Up to 300 source files are read, tests last, and the UI warns when the cap is hit. GitHub's unauthenticated API allows 60 requests per hour; a scan uses 1 or 2, there is an optional token field, and a readable rate-limit message with the reset time. The rate-limit path is unit-tested with fake responses; I have not triggered it in a browser.
+**9. What happens with a huge repo or rate limits?** Up to 300 source files are read, tests last, spread across directories, and the UI warns in proportion to how much was left unread (question 11). GitHub's unauthenticated API allows 60 requests per hour; a scan uses 1 or 2, there is an optional token field, and a readable rate-limit message with the reset time. The rate-limit path is unit-tested with fake responses; I have not triggered it in a browser.
 
 **10. What would you do next?** Check the lower-confidence badge against more removal tests, since I wrote it after seeing postcss and debug; run depcheck with installed dependencies on all 13 repos instead of 3; run more removal tests, since 4 candidates in 2 repos is thin; and test the deployed site. I would not add a rule for one package.
+
+**11. Why only 300 files, and what does deep scan change?** The scanner has to fetch every file one by one from the browser (the zip download is blocked by CORS), so the default reads 300: real source first, tests last, and spread across top-level directories and workspace packages so a monorepo is not represented by its alphabetically first package. When the cap is hit the app says so in proportion: no banner at 95% of the eligible files or more, an info banner from 25%, and below 25% a strong banner, an "unverified" badge on every candidate, and a shed headline that says "up to". Deep scan raises the cap to 1,500, which I measured does not trip any throttling on raw.githubusercontent.com (1,500 requests, all 200, about a minute). It reduces false ghosts on mid-size repos: mocha goes from 63% to a complete scan, and nx from 6% to 29% of its files, which drops its candidates from 144 to 85. But it cannot make a huge repo complete: next.js has about 25,000 eligible source files, so 1,500 is 6% and the strong banner stays. The remaining nx and next.js candidates are unverified, and I did not remove any of them to check.
 
 ## Things I have not verified
 

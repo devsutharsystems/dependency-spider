@@ -27,6 +27,7 @@ const bucketOf = (f) => Math.max(0, Math.min(NB - 1, Math.round(f * (NB - 1))));
 const TWO_PI = Math.PI * 2;
 const MAX_SPARKS = 60;
 const MAX_PIXELS = 2.5e6;
+const MAX_ONE_BY_ONE = 8; // prune: candidates animated one at a time before the rest are cut together
 
 function glowSprite(color, size, alpha = 0.55) {
   const c = document.createElement('canvas');
@@ -646,7 +647,10 @@ export class Viz {
     hooks.onCount?.(report.before);
     this.redrawStatic(); // candidates get their ring-coloured threads
     const removed = new Set();
-    for (const g of report.perGhost) {
+    // The first MAX_ONE_BY_ONE candidates are cut one by one; a long list (nx: 85) would otherwise take over a minute, so
+    // the remaining candidates are cut together, with the same results.
+    const single = report.perGhost.slice(0, MAX_ONE_BY_ONE), bulk = report.perGhost.slice(MAX_ONE_BY_ONE);
+    for (const g of single) {
       const node = this.sprites.get(g.name);
       hooks.onGhost?.(g.name, 'cutting');
       if (node) {
@@ -661,6 +665,21 @@ export class Viz {
       list.forEach((n) => removed.add(n));
       await this.wait(this.shed(list));
       hooks.onGhost?.(g.name, 'done', { removed: list.length });
+    }
+    if (bulk.length) {
+      hooks.onBulk?.(bulk.length);
+      this.focusName = null;
+      const all = [], counts = new Map();
+      for (const g of bulk) {
+        hooks.onGhost?.(g.name, 'cutting');
+        const node = this.sprites.get(g.name);
+        if (node) { node.cut = true; if (g.stillNeededBy) node.stillNeeded = g.stillNeededBy; }
+        const own = g.stillNeededBy ? [] : [...g.shedSet].filter((n) => report.combinedSet.has(n) && !removed.has(n));
+        own.forEach((n) => removed.add(n)); all.push(...own); counts.set(g.name, own.length);
+      }
+      this.redrawStatic(); // all their threads are cut at once
+      await this.wait(this.shed(all));
+      for (const g of bulk) hooks.onGhost?.(g.name, 'done', { removed: counts.get(g.name) });
     }
     const rest = [...report.combinedSet].filter((n) => !removed.has(n)); // these only go when several candidates go together
     if (rest.length) await this.wait(this.shed(rest));

@@ -271,6 +271,7 @@ async function showResult(r) {
   await viz.wait(700);
   hud.mode = 'prune'; hud.count = s.before;
   await viz.prune(s, {
+    onBulk: (n) => { $('status').textContent = `Cutting the first 8 candidates one by one, the other ${n} together.`; },
     onCount: (n) => { hud.count = n; },
     onGhost: (name, state, info) => {
       const { card, state: stateEl } = cards.get(name);
