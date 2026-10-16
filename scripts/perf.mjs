@@ -2,7 +2,7 @@
 // Usage: node scripts/perf.mjs [fixture=debug] [--throttle=4] [--dpr=2] [--profile] [--json]
 // Needs Playwright, which this project deliberately does not depend on:
 //   PW_DIR=<folder where `npm i playwright` was run>  CHROME_PATH=<chrome/chrome-headless-shell binary, optional>
-// Serves nothing itself: start `python3 -m http.server 8000` in the project folder first.
+// Serves nothing itself: start `python3 -m http.server 8000` in the project folder first (or set PORT=... for another server).
 // Reports, per phase (build = crawl + web building, prune = cutting):
 //   interval = time between animation frames (what the viewer sees; >20 ms = a dropped frame at 60 Hz)
 //   script   = main-thread time spent inside the page's own requestAnimationFrame callbacks
@@ -44,7 +44,7 @@ await page.addInitScript(() => {
 });
 
 const t0 = Date.now();
-await page.goto(`http://localhost:8000/?fixture=scripts/fixtures/${fixture}.json&rate=25`);
+await page.goto(`http://localhost:${process.env.PORT || 8000}/?fixture=scripts/fixtures/${fixture}.json&rate=25`);
 await page.waitForSelector('#summary:not([hidden])', { timeout: 300000 });
 await page.waitForTimeout(500);
 const wall = (Date.now() - t0) / 1000;

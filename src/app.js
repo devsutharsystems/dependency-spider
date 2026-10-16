@@ -2,6 +2,7 @@
 import { runPipeline } from './pipeline.js';
 import { fragility } from './registry.js';
 import { fragColor, Viz } from './viz.js';
+import { applyTheme, defaultThemeId } from './theme.js';
 import { prText, ghostLine } from './report.js';
 import { buildCard } from './cards.js';
 import { deserializeResult } from './fixture.js';
@@ -9,6 +10,10 @@ import { legendParts } from './legend.js';
 
 const $ = (id) => document.getElementById(id);
 const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Theme before the canvas is built: the canvas reads the same palette object as the CSS.
+let savedTheme = null;
+try { savedTheme = localStorage.getItem('spider-theme'); } catch { /* storage can be blocked: the page works without it */ }
+applyTheme(savedTheme || defaultThemeId(window.matchMedia('(prefers-color-scheme: dark)').matches));
 const viz = new Viz($('web'), { reducedMotion: reduced });
 window.__viz = viz; // handy for debugging in the console
 window.__spider = { get result() { return current; } };
@@ -119,6 +124,7 @@ async function start() {
   busy = true;
   $('scan').disabled = true;
   resetUi();
+  viz.setHint(false);
   $('progress').hidden = false;
   const withModified = $('stale').checked;
   renderLegend(withModified);
@@ -134,6 +140,7 @@ async function start() {
     $('error').textContent = friendly(err);
     $('error').hidden = false;
     $('progress').hidden = true;
+    viz.reset(); // back to the hanging spider
   } finally {
     busy = false;
     $('scan').disabled = false;
@@ -147,6 +154,7 @@ async function playResult(result, rate = 0) {
   busy = true;
   $('scan').disabled = true;
   resetUi();
+  viz.setHint(false);
   $('progress').hidden = false;
   renderLegend([...result.graph.nodes.values()].some((n) => n.modified)); // colours use `modified` only if the scan had it
   try {

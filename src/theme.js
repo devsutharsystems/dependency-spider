@@ -69,7 +69,7 @@ export function applyTheme(id, root = document.documentElement) {
   const v = { '--bg0': t.bg0, '--bg1': t.bg1, '--glow': t.glow, '--panel': t.panel, '--card': t.card, '--border': t.border, '--border-hi': t.borderHi,
     '--text': t.text, '--muted': t.muted, '--accent': t.accent, '--accent-text': t.accentText, '--accent-on-panel': t.accentOnPanel,
     '--ok': t.okText, '--warn': t.warnText, '--bad': t.badText, '--thread': t.thread, '--shadow': t.shadow,
-    '--vignette': rgba(t.bg0, t.dark ? 0.75 : 0.35), '--ring': t.ring };
+    '--vignette': rgba(t.bg0, t.dark ? 0.75 : 0.35), '--ring': t.ring, '--glow-pos': t.dark ? '50% 48%' : '18% 6%', '--dust': t.dust };
   for (const [k, val] of Object.entries(v)) root.style.setProperty(k, val);
   root.dataset.theme = id;
   root.style.colorScheme = t.dark ? 'dark' : 'light';
