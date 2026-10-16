@@ -11,6 +11,7 @@
 <main class="app">
   <section class="stage" aria-label="Dependency web">
     <div class="canvas-wrap"><canvas id="web" role="img" aria-label="Radial dependency web"></canvas></div>
+    <p id="legend" class="legend" aria-live="polite"></p>
     <p class="stage-note">Static analysis, not a verdict. Candidates only: verify before removing.</p>
   </section>
   <aside class="panel">
@@ -50,7 +51,7 @@
       <button id="replay" type="button" class="secondary small" hidden>Replay animation</button>
       <details id="also" hidden><summary>Also found</summary><div id="also-body"></div></details>
     </div>
-    <footer class="muted">Follows each package's <code>latest</code> version on npm, ignores peer/optional deps. Colour = a staleness heuristic, not a security verdict. <a href="https://github.com/" id="repo-link" hidden></a></footer>
+    <footer class="muted">Follows each package's <code>latest</code> version on npm, ignores peer/optional deps. Dot colours are a heuristic, not a security verdict: see the legend under the web for what they mean in this scan. <a href="https://github.com/" id="repo-link" hidden></a></footer>
   </aside>
 </main>
 <script type="module" src="src/app.js"></script>

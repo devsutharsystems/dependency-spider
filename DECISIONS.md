@@ -17,3 +17,4 @@
 - Cross threads (shared dependencies) are drawn once, faintly, after the build; they are the one thing the spider does not lay.
 - Skip animation jumps to the finished state (including the prune); Replay re-runs from the cached result; both use the same path as `?fixture=` playback.
 - Animation performance is measured on recorded scans (scripts/fixtures/*.json) in headless Chromium, with DPR 2 and 4x CPU throttle as the stress case. Numbers are from one machine, not a real GPU, Safari, Firefox or a phone.
+- Dot colour legend (one line under the web, text depends on the staleness box at scan time). Measured on postcss (228 packages): with staleness OFF only two colours occur, green (2+ maintainers, 102 packages) and yellow (exactly 1 maintainer, 126 packages); age is not measured, so yellow does not mean old. With staleness ON the colours spread from green to red. The legend swatches are computed with the same `fragility()` as the dots, and a test checks that.

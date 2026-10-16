@@ -84,7 +84,7 @@ The spider builds the web; it is not a canned video. `choreo.js` is a pure modul
 
 Other findings: **misplaced** (a prod dependency only used from tests/examples/scripts) and **phantom** (imported but not declared) appear under "Also found".
 
-Fragility colour: `min(1, 0.6*min(staleDays/1460,1) + 0.4*(maintainers==1) + 0.3*deprecated)`. It is a heuristic, not a security verdict, and `modified` from the registry is only a proxy for the last publish. Without the optional staleness pass every package has staleness 0.
+Fragility colour: `min(1, 0.6*min(staleDays/1460,1) + 0.4*(maintainers==1) + 0.3*deprecated)`. It is a heuristic, not a security verdict, and `modified` from the registry is only a proxy for the last publish. Without the optional staleness pass every package has staleness 0, so the colour then shows only the maintainer count (green: several, yellow: exactly one) and deprecation, not age. A one-line legend under the web says which of the two applies to the current scan.
 
 ## Data sources
 

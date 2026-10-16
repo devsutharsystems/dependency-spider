@@ -5,6 +5,7 @@ import { fragColor, Viz } from './viz.js';
 import { prText, ghostLine } from './report.js';
 import { buildCard } from './cards.js';
 import { deserializeResult } from './fixture.js';
+import { legendParts } from './legend.js';
 
 const $ = (id) => document.getElementById(id);
 const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -35,6 +36,21 @@ function friendly(err) {
   if (err instanceof TypeError) return 'Network error: could not reach GitHub or the npm registry. Check your connection and try again.';
   return `Unexpected error: ${err && err.message ? err.message : err}`;
 }
+
+// One line under the canvas saying what the dot colours encode in THIS scan (it depends on the staleness box).
+function renderLegend(stalenessOn) {
+  const { items, tail } = legendParts(stalenessOn);
+  const box = $('legend');
+  box.replaceChildren();
+  for (const it of items) {
+    const sw = el('span', 'sw');
+    sw.style.background = it.f === null ? '#4a5470' : fragColor(it.f);
+    box.append(sw, document.createTextNode(`${it.text} `));
+  }
+  box.append(document.createTextNode(` · ${tail}`));
+}
+renderLegend($('stale').checked);
+$('stale').addEventListener('change', () => { if (!busy) renderLegend($('stale').checked); });
 
 function resetUi() {
   $('error').hidden = true;
@@ -103,6 +119,7 @@ async function start() {
   resetUi();
   $('progress').hidden = false;
   const withModified = $('stale').checked;
+  renderLegend(withModified);
   try {
     const result = await runPipeline($('url').value, {
       token: $('token').value.trim() || undefined,
@@ -129,6 +146,7 @@ async function playResult(result, rate = 0) {
   $('scan').disabled = true;
   resetUi();
   $('progress').hidden = false;
+  renderLegend([...result.graph.nodes.values()].some((n) => n.modified)); // colours use `modified` only if the scan had it
   try {
     const handler = makeEventHandler();
     handler({ type: 'package', pkg: result.pkg });
