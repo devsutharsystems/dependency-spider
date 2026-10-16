@@ -72,3 +72,26 @@ Screenshots every 0.5 s of the build and the prune were captured on the postcss 
 - **Pop-in of the static redraws** and the 83 to 150 ms hitches listed above.
 - Not verified: Safari, Firefox, a real phone, a real GPU. All numbers come from headless Chromium on one machine with software-assisted canvas; a GPU could be faster or behave differently. The 4x CPU throttle is an emulation, not a slow device.
 - Not measured: memory, battery, long sessions, tab switching.
+
+## Beautify branch: before and after (themes and depth cues)
+
+Date: 2026-10-16. Same harness (`scripts/perf.mjs`), same recorded scan (debug, 682 packages), same headless Chromium. **Before** = the commit the branch started from (the animation described above), served from a frozen copy; **After** = the `beautify` branch with sphere sprites, two-pass silk, glints, sparks, dust, vignette, tilt and the theme palette. Columns: frame interval p50 / p95 / max in ms (frames over 20 ms in brackets), then script time per frame p50 / p95 / max in ms.
+
+| Config | Phase | Before: interval p50/p95/max (>20 ms) | Before: script p50/p95/max | After: interval p50/p95/max (>20 ms) | After: script p50/p95/max |
+|---|---|---|---|---|---|
+| DPR 1, 1x | build | 16.7 / 16.8 / 16.8 (0) | 0.1 / 0.3 / 4.1 | 16.7 / 16.8 / 33.3 (1) | 0.1 / 0.2 / 4 |
+| DPR 1, 1x | prune | 16.7 / 16.8 / 16.8 (0) | 0.2 / 0.5 / 14.2 | 16.7 / 16.7 / 33.3 (1) | 0.1 / 0.2 / 16.6 |
+| DPR 1, 4x | build | 16.7 / 16.7 / 33.3 (2) | 0.1 / 0.6 / 6.3 | 16.7 / 16.7 / 66.7 (3) | 0.1 / 0.7 / 20.3 |
+| DPR 1, 4x | prune | 16.7 / 16.8 / 100 (3) | 0.1 / 0.5 / 31 | 16.7 / 16.8 / 150 (3) | 0.2 / 1.1 / 51.9 |
+| DPR 2, 1x | build | 16.7 / 16.8 / 16.8 (0) | 0.1 / 0.1 / 1.1 | 16.7 / 16.7 / 33.3 (1) | 0.1 / 0.2 / 4.1 |
+| DPR 2, 1x | prune | 16.7 / 16.7 / 16.8 (0) | 0.1 / 0.2 / 1.2 | 16.7 / 16.8 / 33.4 (1) | 0.1 / 0.2 / 12.7 |
+| DPR 2, 4x | build | 16.7 / 16.7 / 66.6 (3) | 0.1 / 0.5 / 4.1 | 16.7 / 16.7 / 99.9 (3) | 0.1 / 0.5 / 7 |
+| DPR 2, 4x | prune | 16.7 / 16.8 / 66.7 (8) | 0.1 / 0.6 / 14.2 | 16.7 / 16.8 / 166.6 (11) | 0.4 / 1.4 / 17.1 |
+
+**Budget** (p95 frame time at most 12 ms normal and at most 33 ms throttled): met in all eight configurations. The p95 frame interval is 16.7 to 16.8 ms before and after (vsync-bound), and p95 script time is at most 0.7 ms (build) and 1.1 ms (prune) at DPR 1, and at most 0.5 and 1.4 ms at DPR 2 with 4x throttle.
+
+**What got worse (read this):** the worst single frames in the prune. The maximum interval rose from 100 ms to 150 ms (DPR 1, 4x) and from 67 ms to 167 ms (DPR 2, 4x), and the frames over 20 ms in the DPR 2, 4x prune went from 8 to 11 of about 450. The cause is the static layer: it now draws a sprite per package (up to 682 `drawImage` calls) instead of filling batched circles, and the prune redraws it at its start, at each snip and at each removal. At normal CPU speed the worst prune frame is 33 ms. Not cut, because the p95 budget holds, but it is a real regression in hitches. A cheaper next step would be to redraw only the removed region or to merge the snip and removal redraws.
+
+**Effects cut: none.** Nothing breached the p95 budget, so nothing was removed. Effects that cost per frame are kept small on purpose: the dust layer is a CSS animation (no JavaScript per frame), the spark pool is capped at 60, the glint is one sprite, sprites are pre-rendered per theme, and the idle shimmer runs only before the first scan (it is not in these measurements, because the fixture starts the scan at once).
+
+Caveats as above: one machine, headless Chromium, software-assisted canvas, CPU throttle is an emulation, no Safari, Firefox, phone or real GPU.

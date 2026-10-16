@@ -56,7 +56,7 @@ function renderLegend(stalenessOn) {
     item.append(sw, document.createTextNode(it.text));
     box.append(item, document.createTextNode(' '));
   }
-  box.append(document.createTextNode(` · ${tail}`));
+  box.append(document.createTextNode(`·\u00a0${tail}`)); // non-breaking space keeps the dot with the first word of the tail
 }
 // ---- themes: a small selector; the choice is saved if storage works, and the page works without it ----
 function chooseTheme(id, save = true) {
