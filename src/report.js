@@ -33,7 +33,7 @@ export function prText(r) {
   return [
     `## Remove unused dependencies (candidates)`,
     '',
-    `A static scan of \`${r.repo.owner}/${r.repo.repo}\` found ${plural(r.ghosts.length, 'dependency')} that the code never imports and no script or config mentions.`,
+    `A static scan of \`${r.repo.owner}/${r.repo.repo}\` found ${r.ghosts.length} ${r.ghosts.length === 1 ? 'dependency' : 'dependencies'} that the code never imports and no script or config mentions.`,
     '',
     ...s.perGhost.map((g) => `- \`${g.name}\` (${g.section}): ${g.stillNeededBy ? `still needed by \`${g.stillNeededBy}\`, so removing it will not shrink the tree` : `removing it sheds ${plural(g.shed, 'package')} from the tree`}`),
     '',

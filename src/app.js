@@ -39,6 +39,8 @@ function resetUi() {
   $('summary').hidden = true;
   $('pr-box').hidden = true;
   $('also').hidden = true;
+  $('pr-text').textContent = 'PR text';
+  $('copy-cmd').textContent = 'Copy command';
   $('log').replaceChildren();
   $('cards').replaceChildren();
   $('warnings').replaceChildren();

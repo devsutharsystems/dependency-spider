@@ -323,15 +323,25 @@ export class Viz {
     c.width = 1200; c.height = 630;
     const g = c.getContext('2d');
     g.fillStyle = '#0a0e1a'; g.fillRect(0, 0, 1200, 630);
-    const scale = Math.min(590 / this.canvas.width, 590 / this.canvas.height);
-    g.drawImage(this.canvas, 20, 20, this.canvas.width * scale, this.canvas.height * scale);
+    // square crop around the centre of the web, so it is as large as possible
+    const sq = Math.min(this.canvas.width, this.canvas.height);
+    g.drawImage(this.canvas, (this.canvas.width - sq) / 2, (this.canvas.height - sq) / 2, sq, sq, 20, 20, 590, 590);
     g.fillStyle = '#101524'; g.fillRect(640, 0, 560, 630);
     g.fillStyle = '#7d8aa5'; g.font = '600 22px ui-monospace, Menlo, monospace'; g.fillText('Dependency Spider', 680, 60);
     g.fillStyle = '#e2e8f5'; g.font = '700 28px ui-monospace, Menlo, monospace'; g.fillText(repo, 680, 110);
     g.fillStyle = '#3ddc97'; g.font = '700 76px system-ui, sans-serif'; g.fillText(headline, 680, 215);
     g.fillStyle = '#7d8aa5'; g.font = '24px system-ui, sans-serif'; g.fillText(sub, 680, 255);
     g.fillStyle = '#e2e8f5'; g.font = '20px ui-monospace, Menlo, monospace';
-    items.slice(0, 6).forEach((t, i) => g.fillText(t.length > 44 ? `${t.slice(0, 43)}…` : t, 680, 320 + i * 34));
+    // wrap long lines to the panel width instead of letting them run off the image
+    let y = 320;
+    for (const t of items.slice(0, 5)) {
+      let line = '';
+      for (const word of t.split(' ')) {
+        if (g.measureText(`${line} ${word}`).width > 490 && line) { g.fillText(line, 680, y); y += 28; line = `  ${word}`; } else line = line ? `${line} ${word}` : word;
+      }
+      g.fillText(line, 680, y); y += 36;
+    }
+    if (items.length > 5) g.fillText(`+ ${items.length - 5} more`, 680, y);
     g.fillStyle = '#ffb84d'; g.font = '18px system-ui, sans-serif'; g.fillText(note, 680, 590);
     return new Promise((res) => c.toBlob(res, 'image/png'));
   }
