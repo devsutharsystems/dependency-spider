@@ -1,0 +1,14 @@
+{
+  "name": "dependency-spider",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Paste a GitHub repo, find unused npm dependencies, see how much of the dependency tree you can cut.",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "serve": "python3 -m http.server 8000",
+    "acceptance": "node scripts/acceptance.mjs",
+    "validate": "node scripts/validate.mjs"
+  },
+  "license": "MIT"
+}
