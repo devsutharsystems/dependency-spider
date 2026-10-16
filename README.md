@@ -126,4 +126,4 @@ Honest reading:
 
 ## Deploy (GitHub Pages)
 
-`.github/workflows/pages.yml` runs the tests, assembles `index.html`, `style.css`, `src/`, `docs/` and publishes them. After creating the repo, set **Settings, Pages, Source = GitHub Actions** (or run the `gh api` command below). The site is fully static, so it also works from any static host.
+`.github/workflows/pages.yml` runs the tests, assembles `index.html`, `style.css`, `src/`, `docs/` and publishes them. After creating the repo, set **Settings, Pages, Source = GitHub Actions**. The site is fully static, so it also works from any static host.
