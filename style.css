@@ -112,3 +112,7 @@ footer { margin-top: var(--s5); font-size: 11px; }
   .stage-note { padding-left: var(--s4); padding-right: var(--s4); }
 }
 @media (prefers-reduced-motion: reduce) { #bar-fill, .hint, .theme-btn, button, .card { transition: none; } .dust { animation: none; } }
+
+/* diagnosis switches (src/flags.js) */
+[data-off~="vignette"] .canvas-wrap::after { display: none; }
+[data-off~="dust"] .dust { display: none; }

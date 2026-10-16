@@ -7,6 +7,8 @@ import { prText, ghostLine } from './report.js';
 import { buildCard } from './cards.js';
 import { deserializeResult } from './fixture.js';
 import { legendParts } from './legend.js';
+import { off, isOff } from './flags.js';
+document.documentElement.dataset.off = [...off].join(' '); // CSS hooks for the diagnosis switches
 
 const $ = (id) => document.getElementById(id);
 const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -80,7 +82,7 @@ if (!savedTheme) { // no saved choice: follow the system scheme if it changes
 
 // count-up for the headline number (skipped for reduced motion)
 function countUp(node, to, ms = 700) {
-  if (reduced || to === 0) { node.textContent = to; return; }
+  if (reduced || to === 0 || isOff('countup')) { node.textContent = to; return; }
   const t0 = performance.now();
   const step = (now) => { const k = Math.min(1, (now - t0) / ms); node.textContent = Math.round(to * (1 - (1 - k) ** 3)); if (k < 1) requestAnimationFrame(step); };
   requestAnimationFrame(step);

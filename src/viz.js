@@ -13,6 +13,7 @@
 import { HUB, MAX_RING, WebLayout, Planner, PACE, toXY, lengthOf, pointAlong } from './choreo.js';
 import { theme, fragColor, RING_FROM } from './theme.js';
 import { mix, rgba } from './color.js';
+import { isOff } from './flags.js';
 
 export { fragColor };
 
@@ -20,8 +21,8 @@ const NB = 16; // colour buckets; sprite index NB = "not on npm" (hollow), NB + 
 const LEVELS = 4; // depth levels by ring: 1, 2, 3-4, 5-6
 const levelOf = (ring) => (ring <= 1 ? 0 : ring === 2 ? 1 : ring <= 4 ? 2 : 3);
 const BASE_R = [3.7, 3.2, 2.7, 2.2];
-const FOG = [0, 0.1, 0.22, 0.34]; // how far a colour is mixed toward the background at each level
-const DIM = [1, 0.95, 0.86, 0.74];
+const FOG = isOff('fog') ? [0, 0, 0, 0] : [0, 0.1, 0.22, 0.34]; // how far a colour is mixed toward the background at each level
+const DIM = isOff('fog') ? [1, 1, 1, 1] : [1, 0.95, 0.86, 0.74];
 const bucketOf = (f) => Math.max(0, Math.min(NB - 1, Math.round(f * (NB - 1))));
 const TWO_PI = Math.PI * 2;
 const MAX_SPARKS = 60;
@@ -57,7 +58,7 @@ export class Viz {
     this.tilt.append(this.dust, canvas, this.live);
     this.lctx = this.live.getContext('2d');
     this.reduced = reducedMotion;
-    this.tiltOn = !reducedMotion && !window.matchMedia('(hover: none), (pointer: coarse)').matches;
+    this.tiltOn = !reducedMotion && !isOff('tilt') && !window.matchMedia('(hover: none), (pointer: coarse)').matches;
     this.tx = 0; this.ty = 0; this.cx2 = 0; this.cy2 = 0; this.tiltApplied = '';
     if (this.tiltOn) {
       this.wrap.addEventListener('pointermove', (e) => {
@@ -102,7 +103,7 @@ export class Viz {
       glow: glowA.map((a) => rgba(t.thread, a)), core: coreA.map((a) => rgba(t.thread, a)),
       cross: rgba(t.thread, t.dark ? 0.06 : 0.1), dew: rgba('#ffffff', t.dark ? 0.55 : 0.95),
       ghost: rgba(t.ring, 0.85), threadLive: mix(t.thread, t.dark ? '#ffffff' : '#000000', 0.45),
-      ringLine: t.ringLine, comp: t.additive ? 'lighter' : 'source-over',
+      ringLine: t.ringLine, comp: t.additive && !isOff('additive') ? 'lighter' : 'source-over',
     };
     this.glowBlue = glowSprite(t.spiderGlow, 64, t.dark ? 0.6 : 0.3);
     this.glowRing = glowSprite(t.ring, 48, 0.6);
@@ -152,7 +153,7 @@ export class Viz {
     const m = S / 2;
     const halo = g.createRadialGradient(m, m, 2, m, m, m);
     halo.addColorStop(0, rgba(t.spiderGlow, t.dark ? 0.55 : 0.25)); halo.addColorStop(1, rgba(t.spiderGlow, 0));
-    g.fillStyle = halo; g.fillRect(0, 0, S, S);
+    if (!isOff('halo')) { g.fillStyle = halo; g.fillRect(0, 0, S, S); }
     const ab = g.createRadialGradient(m - 1.5, m + 1.5, 0.5, m, m + 3, 8);
     ab.addColorStop(0, mix(t.spider, '#ffffff', t.dark ? 0 : 0.35)); ab.addColorStop(1, mix(t.spider, t.dark ? '#7a8bb5' : '#000000', 0.45));
     g.fillStyle = ab; g.beginPath(); g.ellipse(m, m + 3.2, 4.6, 6.6, 0, 0, TWO_PI); g.fill();
@@ -296,10 +297,10 @@ export class Viz {
     const p = s.parent ? this.sprites.get(s.parent) : this.hub;
     const c = this.ctx, st = this.styles;
     c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(s.x, s.y);
-    c.strokeStyle = st.glow[s.lv]; c.lineWidth = 3.4; c.stroke(); // wide faint pass
+    if (!isOff('glow')) { c.strokeStyle = st.glow[s.lv]; c.lineWidth = 3.4; c.stroke(); } // wide faint pass
     c.strokeStyle = st.core[s.lv]; c.lineWidth = 1; c.stroke(); // thin bright core
     this.drawNodeSprite(c, s);
-    if (glint) { this.gi = (this.gi + 1) % this.glints.length; const g = this.glints[this.gi]; g.x = s.x; g.y = s.y; g.t = performance.now(); }
+    if (glint && !isOff('glints')) { this.gi = (this.gi + 1) % this.glints.length; const g = this.glints[this.gi]; g.x = s.x; g.y = s.y; g.t = performance.now(); }
     this.recent.push({ name: s.name, color: s.missing ? theme.cmiss : fragColor(s.bucket / (NB - 1)) });
     if (this.recent.length > 8) this.recent.shift();
   }
@@ -322,7 +323,7 @@ export class Viz {
       }
       if (this.crossOn) for (const d of s.deps) { const t = this.sprites.get(d); if (live(t) && t.parent !== s.name) { cross.moveTo(s.x, s.y); cross.lineTo(t.x, t.y); } }
     }
-    c.lineWidth = 3.4; for (let L = 0; L < LEVELS; L++) { c.strokeStyle = st.glow[L]; c.stroke(tree[L]); } // wide faint pass
+    if (!isOff('glow')) { c.lineWidth = 3.4; for (let L = 0; L < LEVELS; L++) { c.strokeStyle = st.glow[L]; c.stroke(tree[L]); } } // wide faint pass
     c.lineWidth = 1; for (let L = 0; L < LEVELS; L++) { c.strokeStyle = st.core[L]; c.stroke(tree[L]); } // thin bright core
     if (this.crossOn) { c.strokeStyle = st.cross; c.stroke(cross); }
     c.strokeStyle = st.ghost; c.lineWidth = 1.4; c.stroke(red); c.lineWidth = 1;
@@ -339,7 +340,7 @@ export class Viz {
 
   drawHub() {
     const c = this.ctx;
-    c.drawImage(this.glowBlue, this.hub.x - 18, this.hub.y - 18, 36, 36);
+    if (!isOff('halo')) c.drawImage(this.glowBlue, this.hub.x - 18, this.hub.y - 18, 36, 36);
     c.fillStyle = theme.spider; c.beginPath(); c.arc(this.hub.x, this.hub.y, 4.8, 0, TWO_PI); c.fill();
     c.strokeStyle = rgba(theme.thread, 0.6); c.lineWidth = 1; c.beginPath(); c.arc(this.hub.x, this.hub.y, 8.5, 0, TWO_PI); c.stroke();
   }
@@ -447,13 +448,13 @@ export class Viz {
   drawLive(now) {
     const c = this.lctx, sp = this.spider, st = this.step, sty = this.styles;
     this.clearLive(false);
-    if (this.idle) { this.drawIdle(c, now); return; }
+    if (this.idle) { if (!isOff('idle')) this.drawIdle(c, now); return; }
     if (st && st.state === 'travel' && (st.kind === 'lay' || st.kind === 'drop')) { // the thread being laid: its tip IS the spider
       const a = st.pts[0];
       c.strokeStyle = sty.threadLive; c.lineWidth = st.kind === 'drop' ? 1 : 1.5;
       c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(sp.x, sp.y); c.stroke();
       this.touch(a.x, a.y, 6); this.touch(sp.x, sp.y, 6);
-      if (st.kind === 'lay' && !this.reduced) { // a short bright glint travels along the thread behind the spider
+      if (st.kind === 'lay' && !this.reduced && !isOff('glints')) { // a short bright glint travels along the thread behind the spider
         const ph = (now % 240) / 240, gx = sp.x + (a.x - sp.x) * ph, gy = sp.y + (a.y - sp.y) * ph;
         c.globalCompositeOperation = sty.comp; c.globalAlpha = 0.9 * (1 - ph * 0.6);
         c.drawImage(this.glowWhite, gx - 6, gy - 6, 12, 12); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
@@ -634,6 +635,7 @@ export class Viz {
   }
 
   burst(x, y, n) { // pooled sparks: at most MAX_SPARKS alive in total, oldest slots are reused
+    if (isOff('sparks')) return;
     const k = this.spark;
     for (let i = 0; i < n; i++) {
       const j = k.n = (k.n + 1) % MAX_SPARKS, a = Math.random() * TWO_PI, v = 50 + Math.random() * 140;
