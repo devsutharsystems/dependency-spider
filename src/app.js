@@ -43,9 +43,11 @@ function renderLegend(stalenessOn) {
   const box = $('legend');
   box.replaceChildren();
   for (const it of items) {
+    const item = el('span', 'item'); // swatch and label stay together when the line wraps (phone)
     const sw = el('span', 'sw');
     sw.style.background = it.f === null ? '#4a5470' : fragColor(it.f);
-    box.append(sw, document.createTextNode(`${it.text} `));
+    item.append(sw, document.createTextNode(it.text));
+    box.append(item, document.createTextNode(' '));
   }
   box.append(document.createTextNode(` · ${tail}`));
 }
