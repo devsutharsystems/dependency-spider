@@ -28,7 +28,7 @@ await page.addInitScript(() => {
   const rec = { build: { iv: [] }, prune: { iv: [] }, idle: { iv: [] }, loaf: [] };
   let last = 0, phase = 'build', marked = false;
   window.__perf = rec; window.__phase = () => phase;
-  try { new PerformanceObserver((l) => { for (const e of l.getEntries()) rec.loaf.push({ phase, d: e.duration, b: e.blockingDuration || 0 }); }).observe({ type: 'long-animation-frame', buffered: true }); } catch { /* not supported */ }
+  try { new PerformanceObserver((l) => { for (const e of l.getEntries()) rec.loaf.push({ phase, d: e.duration, b: e.blockingDuration || 0, at: Math.round(e.startTime), scripts: (e.scripts || []).filter((x) => x.duration > 20).map((x) => `${x.sourceFunctionName || x.invoker || '?'} @${(x.sourceURL || '').split('/').slice(-1)[0]}:${x.sourceCharPosition} ${Math.round(x.duration)}ms`).slice(0, 3) }); }).observe({ type: 'long-animation-frame', buffered: true }); } catch { /* not supported */ }
   window.requestAnimationFrame = (cb) => orig((ts) => {
     if (!marked && document.querySelector('#cards .card')) { phase = 'prune'; marked = true; performance.mark('phase:prune'); }
     if (last) rec[window.__idleMode ? 'idle' : phase].iv.push(ts - last);
@@ -83,6 +83,7 @@ const begin = marks['phase:begin'] ?? 0, pruneAt = marks['phase:prune'] ?? marks
 const summarise = (ph, from, to) => { const iv = rec[ph].iv, n = iv.length || 1, g = window_(from, to);
   const loaf = rec.loaf.filter((l) => l.phase === ph || (idle && ph === 'idle'));
   return { frames: iv.length, seconds: r1((to - from) / 1e6), interval: { p50: r1(q(iv, 0.5)), p95: r1(q(iv, 0.95)), max: r1(Math.max(0, ...iv)), over20: iv.filter((x) => x > 20).length, over33: iv.filter((x) => x > 33.4).length },
+    loafBig: loaf.filter((l) => l.d > 100).map((l) => ({ at: l.at, d: Math.round(l.d), scripts: l.scripts })),
     loaf: { count: loaf.length, blockingMs: r1(loaf.reduce((s, l) => s + l.b, 0)), maxMs: r1(Math.max(0, ...loaf.map((l) => l.d))) },
     busyMsPerFrame: { main: r1(g.main / 1000 / n), compositor: r1(g.compositor / 1000 / n), raster: r1(g.raster / 1000 / n), gpu: r1(g.gpu / 1000 / n) } }; };
 const out = idle ? { label, idle: true, off, dpr, idleRun: summarise('idle', begin, end) }
