@@ -16,7 +16,12 @@ const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 let savedTheme = null;
 try { savedTheme = localStorage.getItem('spider-theme'); } catch { /* storage can be blocked: the page works without it */ }
 applyTheme(savedTheme || defaultThemeId(window.matchMedia('(prefers-color-scheme: dark)').matches));
-const viz = new Viz($('web'), { reducedMotion: reduced });
+// Quality tier: 2 full, 1 reduced (touch devices start here), 0 lite. The "Lite effects" box forces 0 and is remembered if storage works.
+let lite = false;
+try { lite = localStorage.getItem('spider-lite') === '1'; } catch { /* storage blocked: the page works without it */ }
+const coarse = window.matchMedia('(hover: none), (pointer: coarse)').matches;
+const baseTier = coarse ? 1 : 2;
+const viz = new Viz($('web'), { reducedMotion: reduced, tier: lite ? 0 : baseTier });
 window.__viz = viz; // handy for debugging in the console
 window.__spider = { get result() { return current; } };
 
@@ -283,6 +288,15 @@ function fillAlso(r) {
   section('Not reported: needed as a peer dependency', (r.peerKept || []).map((k) => `${k.name}: peer of ${k.neededBy}`));
   $('also').hidden = !body.childNodes.length;
 }
+
+$('lite').checked = lite;
+function tierNote(t, auto) { $('tier-note').textContent = t === 2 ? '' : t === 1 ? (auto ? 'Effects reduced automatically to keep it smooth.' : '') : (auto ? 'Effects switched to lite automatically to keep it smooth.' : 'Lite effects are on.'); }
+viz.onTier = tierNote; tierNote(viz.tier, false);
+$('lite').addEventListener('change', () => {
+  try { localStorage.setItem('spider-lite', $('lite').checked ? '1' : '0'); } catch { /* ignore: storage blocked */ }
+  viz.setTier($('lite').checked ? 0 : baseTier); // the user's choice; the only way back up is this box
+  tierNote(viz.tier, false);
+});
 
 $('skip').addEventListener('click', () => { viz.skip(); });
 $('replay').addEventListener('click', () => { if (current) playResult(current, 0); });
