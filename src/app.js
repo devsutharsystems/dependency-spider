@@ -16,12 +16,20 @@ const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 let savedTheme = null;
 try { savedTheme = localStorage.getItem('spider-theme'); } catch { /* storage can be blocked: the page works without it */ }
 applyTheme(savedTheme || defaultThemeId(window.matchMedia('(prefers-color-scheme: dark)').matches));
-// Quality tier: 2 full, 1 reduced (touch devices start here), 0 lite. The "Lite effects" box forces 0 and is remembered if storage works.
-let lite = false;
-try { lite = localStorage.getItem('spider-lite') === '1'; } catch { /* storage blocked: the page works without it */ }
+// Effects quality. Auto: tier 2 on desktop, tier 1 on touch, steps down by itself if frames are slow. Full: tier 2, never steps down.
+// Lite: tier 0. `?tier=0|1|2` forces a tier for testing (for example on a phone). The choice is saved if storage works.
 const coarse = window.matchMedia('(hover: none), (pointer: coarse)').matches;
-const baseTier = coarse ? 1 : 2;
-const viz = new Viz($('web'), { reducedMotion: reduced, tier: lite ? 0 : baseTier });
+const autoTier = coarse ? 1 : 2;
+let urlTier = (() => { const v = new URLSearchParams(location.search).get('tier'); return v === '0' || v === '1' || v === '2' ? Number(v) : null; })();
+let effectsMode = 'auto';
+try {
+  const m = localStorage.getItem('spider-effects');
+  if (m === 'auto' || m === 'full' || m === 'lite') effectsMode = m;
+  else if (localStorage.getItem('spider-lite') === '1') effectsMode = 'lite'; // older "Lite effects" checkbox
+} catch { /* storage blocked: the page works without it */ }
+const tierFor = (m) => (m === 'full' ? 2 : m === 'lite' ? 0 : autoTier);
+const viz = new Viz($('web'), { reducedMotion: reduced, tier: urlTier ?? tierFor(effectsMode) });
+viz.autoStep = urlTier === null && effectsMode === 'auto';
 window.__viz = viz; // handy for debugging in the console
 window.__spider = { get result() { return current; } };
 
@@ -289,12 +297,17 @@ function fillAlso(r) {
   $('also').hidden = !body.childNodes.length;
 }
 
-$('lite').checked = lite;
-function tierNote(t, auto) { $('tier-note').textContent = t === 2 ? '' : t === 1 ? (auto ? 'Effects reduced automatically to keep it smooth.' : '') : (auto ? 'Effects switched to lite automatically to keep it smooth.' : 'Lite effects are on.'); }
+// The selector and a plain-text readout of the tier that is actually running.
+$('effects').value = effectsMode;
+function tierNote(t, auto = false) {
+  $('tier-note').textContent = urlTier !== null ? `tier ${t} (set in the URL)` : effectsMode === 'auto' ? `Auto: tier ${t}${auto ? ' (reduced to keep it smooth)' : ''}` : effectsMode === 'full' ? 'Full: tier 2' : 'Lite: tier 0';
+}
 viz.onTier = tierNote; tierNote(viz.tier, false);
-$('lite').addEventListener('change', () => {
-  try { localStorage.setItem('spider-lite', $('lite').checked ? '1' : '0'); } catch { /* ignore: storage blocked */ }
-  viz.setTier($('lite').checked ? 0 : baseTier); // the user's choice; the only way back up is this box
+$('effects').addEventListener('change', () => {
+  effectsMode = $('effects').value; urlTier = null;
+  try { localStorage.setItem('spider-effects', effectsMode); } catch { /* ignore: storage blocked */ }
+  viz.autoStep = effectsMode === 'auto';
+  viz.setTier(tierFor(effectsMode)); // the user's choice; Auto is the only mode that steps down on its own
   tierNote(viz.tier, false);
 });
 

@@ -86,7 +86,19 @@ PW_DIR=<playwright folder> node scripts/perf.mjs debug --dpr=2 --throttle=4
 
 ## Smoothness controls
 
-The page measures its own frame rate. If the rolling 60-frame p95 frame interval stays above 22 ms for 1.5 s it drops one quality tier for the rest of the session (it never goes back up by itself): tier 2 is everything, tier 1 turns off the pointer tilt, dust, the wide glow stroke and additive blending, tier 0 also uses pixel ratio 1 and drops depth fog, glints and sparks. Touch and coarse-pointer devices start at tier 1. A **Lite effects** checkbox in the panel forces tier 0 and is remembered (in `localStorage`, if the browser allows it). The frame loop stops completely when nothing is animating, each canvas is capped at about 2.5 megapixels, and the dust and vignette are one static CSS background. Measurements, including what could not be reproduced: [results/lag-diagnosis.md](results/lag-diagnosis.md).
+The page measures its own frame rate. **Effects: Auto / Full / Lite** (a selector in the panel, with a plain-text readout such as "Auto: tier 1"):
+
+- **Auto** (default): tier 2 on desktop, tier 1 on touch devices. If the rolling 60-frame p95 frame interval stays above 22 ms for 1.5 s it drops one tier for the rest of the session; it never goes back up by itself.
+- **Full**: tier 2 and never steps down. **Lite**: tier 0.
+- `?tier=0|1|2` in the URL forces a tier (for testing on a phone). The Auto/Full/Lite choice is saved in `localStorage` if the browser allows it; the page works without it.
+
+| Tier | Keeps | Drops |
+|---|---|---|
+| **2** (Full; Auto on desktop) | everything: themes, restyled panel, dewdrop sphere sprites, depth fog, wide glow pass, additive blending, spider halo, dust and vignette, glints, sparks, idle sway and ring shimmer, pointer tilt, native pixel ratio (capped at about 2.5 megapixels per canvas) | nothing |
+| **1** (Auto on touch) | everything above except the two below | the pointer tilt and the idle ring shimmer |
+| **0** (Lite) | themes, restyled panel, sphere sprites, halo, dust, vignette, silk, legend cues | pixel ratio forced to 1, depth fog, glints, sparks, wide glow pass, additive blending, idle animation (the spider hangs still and the loop stops) |
+
+These cuts follow measured costs ([results/lag-diagnosis.md](results/lag-diagnosis.md)): the cheap effects (halo, fog, glints, sparks, glow pass, additive blending) cost 0 to 0.3 ms per frame on a real GPU, so they stay in tier 1; the expensive things were extra full-size layers, the pointer tilt and an animation loop that never stopped. The frame loop now stops when nothing is animating, and the dust and vignette are one static CSS background.
 
 ## The animation
 

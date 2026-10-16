@@ -111,5 +111,8 @@ footer { margin-top: var(--s5); font-size: 11px; }
 @media (prefers-reduced-motion: reduce) { #bar-fill, .hint, .theme-btn, button, .card { transition: none; } }
 
 /* diagnosis switches (src/flags.js) */
-.tier-note { font-size: 11px; min-height: 0; margin: 0 0 var(--s2); }
-.tier-note:empty { display: none; }
+.effects { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s2); margin: var(--s2) 0; font-size: 12px; }
+.effects select { background: var(--bg0); color: var(--text); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 4px 8px; font: inherit; font-size: 12px; cursor: pointer; }
+.effects select:hover { border-color: var(--border-hi); }
+.effects select:focus-visible { outline: 2px solid var(--accent-on-panel); outline-offset: 2px; }
+#tier-note { font-size: 11px; }

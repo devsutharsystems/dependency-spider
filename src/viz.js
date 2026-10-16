@@ -56,6 +56,7 @@ export class Viz {
     this.tilt.append(canvas, this.live);
     this.lctx = this.live.getContext('2d');
     this.reduced = reducedMotion;
+    this.autoStep = true; // false when the user forced a tier (Full / Lite / ?tier=)
     this.tier = tier; // 2 full, 1 no tilt/dust/glow pass/additive, 0 also DPR 1, no fog, no glints, no particles
     this.onTier = null;
     this.tiltOn = !reducedMotion && !isOff('tilt') && !window.matchMedia('(hover: none), (pointer: coarse)').matches;
@@ -94,9 +95,9 @@ export class Viz {
   }
 
   get fog() { return this.tier >= 1 && !isOff('fog'); }
-  get glowPass() { return this.tier >= 2 && !isOff('glow'); }
+  get glowPass() { return this.tier >= 1 && !isOff('glow'); } // costs ~0 ms/frame: it is drawn into the static layer only when something is anchored
   get glintsOn() { return this.tier >= 1 && !isOff('glints'); }
-  get additive() { return this.tier >= 2 && theme.additive && !isOff('additive'); }
+  get additive() { return this.tier >= 1 && theme.additive && !isOff('additive'); } // measured 0.1 ms/frame
 
   // ---- theme-dependent assets (rebuilt only when the theme or the pixel ratio changes) ---------------------------
 
@@ -180,7 +181,7 @@ export class Viz {
     const t = theme, w = Math.max(10, Math.round(this.w)), h = Math.max(10, Math.round(this.h));
     const layers = [];
     if (!isOff('vignette')) layers.push(`radial-gradient(120% 100% at 50% 50%, transparent 55%, ${rgba(t.bg0, t.dark ? 0.75 : 0.35)} 100%)`);
-    if (this.tier >= 2 && !isOff('dust')) {
+    if (!isOff('dust')) { // a static background image: free at every tier
       const d = document.createElement('canvas'); d.width = w; d.height = h;
       const c = d.getContext('2d');
       let seed = 12345;
@@ -622,7 +623,7 @@ export class Viz {
     if (this.perfN < 60 || this.perfN % 10) return;
     this.perfTmp.set(b); this.perfTmp.sort();
     const p95 = this.perfTmp[56];
-    if (p95 > 22) { if (!this.overSince) this.overSince = now; else if (now - this.overSince >= 1500 && this.tier > 0) this.setTier(this.tier - 1, true); }
+    if (p95 > 22) { if (!this.overSince) this.overSince = now; else if (now - this.overSince >= 1500 && this.tier > 0 && this.autoStep) this.setTier(this.tier - 1, true); }
     else this.overSince = 0;
   }
 
